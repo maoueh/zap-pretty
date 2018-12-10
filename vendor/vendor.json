@@ -1,0 +1,13 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "3WQpCT56qpf4vrFs7ReOn0VQQpo=",
+			"path": "github.com/logrusorgru/aurora",
+			"revision": "a7b3b318ed4e1ae5b80602b08627267303c68572",
+			"revisionTime": "2018-10-02T19:45:14Z"
+		}
+	],
+	"rootPath": "github.com/maoueh/zap-pretty"
+}
