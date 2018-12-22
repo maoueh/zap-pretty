@@ -23,7 +23,7 @@ $ go get -u github.com/maoueh/zap-pretty
 
 ## Usage
 
-Simply pipe the output of the CLI tool generating Zap JSON log line to the `zap-pretty` tool:
+Simply pipe the output of the CLI tool generating Zap JSON log lines to the `zap-pretty` tool:
 
 ```sh
 zap_instrumented | zap-pretty
