@@ -5,20 +5,23 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/logrusorgru/aurora"
 	. "github.com/logrusorgru/aurora"
 )
 
-var debug bool
+var debug = log.New(ioutil.Discard, "", 0)
 var severityToColor map[string]Color
 
 func init() {
 	if os.Getenv("ZAP_PRETTY_DEBUG") != "" {
-		debug = true
+		debug = log.New(os.Stderr, "[pretty-debug] ", 0)
 	}
 
 	severityToColor = make(map[string]Color)
@@ -28,64 +31,89 @@ func init() {
 	severityToColor["ERROR"] = RedFg
 }
 
+type processor struct {
+	scanner *bufio.Scanner
+	output  io.Writer
+}
+
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		processLine(scanner.Text())
+	processor := &processor{
+		scanner: bufio.NewScanner(os.Stdin),
+		output:  os.Stdout,
 	}
 
-	if err := scanner.Err(); err != nil {
-		log.Println(err)
+	processor.process()
+}
+
+func (p *processor) process() {
+	first := true
+	for p.scanner.Scan() {
+		if !first {
+			fmt.Fprintln(p.output)
+		}
+
+		p.processLine(p.scanner.Text())
+		first = false
+	}
+
+	if err := p.scanner.Err(); err != nil {
+		debug.Println("Scanner terminated with error", err)
 	}
 }
 
-func processLine(line string) {
-	if !mightBeJson(line) {
-		fmt.Println(line)
+func (p *processor) processLine(line string) {
+	debug.Println("Processing line", line)
+	if !p.mightBeJson(line) {
+		fmt.Fprint(p.output, line)
+		return
 	}
 
 	var lineData map[string]interface{}
 	err := json.Unmarshal([]byte(line), &lineData)
 	if err != nil {
-		maybeLogError(err)
-		fmt.Println(line)
+		fmt.Fprint(p.output, line)
+		debug.Println(err)
+		return
 	}
 
-	prettyLine, err := maybePrettyPrintLine(line, lineData)
-	if prettyLine != "" {
-		fmt.Println(prettyLine)
-	}
+	prettyLine, err := p.maybePrettyPrintLine(line, lineData)
 
 	if err != nil {
-		maybeLogError(err)
+		fmt.Fprint(p.output, line)
+
+		switch err {
+		case errNonZapLine:
+		default:
+			debug.Println(err)
+		}
+	} else {
+		fmt.Fprint(p.output, prettyLine)
 	}
 }
 
-func mightBeJson(line string) bool {
-	// TODO: Shall we make an optimization to first check if the line might be
-	//       a valid JSON object an only process it if it's the case? Let's process
-	//       all line for now!
-	return true
+func (p *processor) mightBeJson(line string) bool {
+	// TODO: Improve optimization when some benchmarks are available
+	return strings.Contains(line, "{")
 }
 
-func maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
+func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
 	if lineData["time"] == nil ||
 		lineData["severity"] == nil ||
 		lineData["caller"] == nil ||
 		lineData["message"] == nil {
-		return line, nil
+		return "", errNonZapLine
 	}
 
 	var buffer bytes.Buffer
 	parsedTime, err := time.Parse(time.RFC3339, lineData["time"].(string))
 	if err != nil {
-		return line, err
+		return "", err
 	}
 
 	buffer.WriteString(fmt.Sprintf("[%s]", parsedTime.Format("2006-01-02 15:04:01.000 MST")))
 
 	buffer.WriteByte(' ')
-	buffer.WriteString(colorizeSeverity(lineData["severity"].(string)).String())
+	buffer.WriteString(p.colorizeSeverity(lineData["severity"].(string)).String())
 
 	buffer.WriteByte(' ')
 	buffer.WriteString(Gray(fmt.Sprintf("(%s)", lineData["caller"].(string))).String())
@@ -117,7 +145,7 @@ func maybePrettyPrintLine(line string, lineData map[string]interface{}) (string,
 
 		if err != nil {
 			// FIXME: We could print each line as raw text maybe when it's not working?
-			maybeLogError(err)
+			debug.Println(err)
 		} else {
 			buffer.WriteByte(' ')
 			buffer.Write(jsonBytes)
@@ -127,7 +155,7 @@ func maybePrettyPrintLine(line string, lineData map[string]interface{}) (string,
 	return buffer.String(), nil
 }
 
-func colorizeSeverity(severity string) aurora.Value {
+func (p *processor) colorizeSeverity(severity string) aurora.Value {
 	color := severityToColor[severity]
 	if color == 0 {
 		color = BlueFg
@@ -136,8 +164,4 @@ func colorizeSeverity(severity string) aurora.Value {
 	return Colorize(severity, color)
 }
 
-func maybeLogError(err error) {
-	if debug {
-		fmt.Println(err)
-	}
-}
+var errNonZapLine error
