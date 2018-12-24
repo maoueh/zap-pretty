@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"strings"
 	"time"
@@ -19,16 +21,21 @@ import (
 var debug = log.New(ioutil.Discard, "", 0)
 var severityToColor map[string]Color
 
+var errNonZapLine = errors.New("non-zap line")
+
 func init() {
 	if os.Getenv("ZAP_PRETTY_DEBUG") != "" {
 		debug = log.New(os.Stderr, "[pretty-debug] ", 0)
 	}
 
 	severityToColor = make(map[string]Color)
-	severityToColor["DEBUG"] = BlueFg
-	severityToColor["INFO"] = GreenFg
-	severityToColor["WARNING"] = BrownFg
-	severityToColor["ERROR"] = RedFg
+	severityToColor["debug"] = BlueFg
+	severityToColor["info"] = GreenFg
+	severityToColor["warning"] = BrownFg
+	severityToColor["error"] = RedFg
+	severityToColor["dpanic"] = RedFg
+	severityToColor["panic"] = RedFg
+	severityToColor["fatal"] = RedFg
 }
 
 type processor struct {
@@ -97,13 +104,68 @@ func (p *processor) mightBeJson(line string) bool {
 }
 
 func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
-	if lineData["time"] == nil ||
-		lineData["severity"] == nil ||
-		lineData["caller"] == nil ||
-		lineData["message"] == nil {
-		return "", errNonZapLine
+	if lineData["level"] != nil && lineData["ts"] != nil && lineData["caller"] != nil && lineData["msg"] != nil {
+		return p.maybePrettyPrintZapLine(line, lineData)
 	}
 
+	if lineData["severity"] != nil && lineData["time"] != nil && lineData["caller"] != nil && lineData["message"] != nil {
+		return p.maybePrettyPrintZapdriverLine(line, lineData)
+	}
+
+	return "", errNonZapLine
+}
+
+func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]interface{}) (string, error) {
+	var buffer bytes.Buffer
+
+	nanosSinceEpoch := lineData["ts"].(float64) * time.Second.Seconds()
+	secondsPart, nanosPart := math.Modf(nanosSinceEpoch)
+	parsedTime := time.Unix(int64(secondsPart), int64(nanosPart/time.Nanosecond.Seconds()))
+
+	buffer.WriteString(fmt.Sprintf("[%s]", parsedTime.Format("2006-01-02 15:04:05.000 MST")))
+
+	buffer.WriteByte(' ')
+	buffer.WriteString(p.colorizeSeverity(lineData["level"].(string)).String())
+
+	buffer.WriteByte(' ')
+	buffer.WriteString(Gray(fmt.Sprintf("(%s)", lineData["caller"].(string))).String())
+
+	buffer.WriteByte(' ')
+	buffer.WriteString(Blue(lineData["msg"].(string)).String())
+
+	// Standard stuff
+	delete(lineData, "level")
+	delete(lineData, "ts")
+	delete(lineData, "caller")
+	delete(lineData, "message")
+
+	if len(lineData) > 0 {
+		// FIXME: This is poor, we would like to print in a single line stuff that are not too
+		//        big. But what represents a too big value exactly? We would need to serialize to
+		//        JSON, check lenght, if smaller than threshold, print with space, otherwise
+		//        re-serialize with pretty-printing stuff
+		var jsonBytes []byte
+		var err error
+
+		if len(lineData) <= 2 {
+			jsonBytes, err = json.Marshal(lineData)
+		} else {
+			jsonBytes, err = json.MarshalIndent(lineData, "", "  ")
+		}
+
+		if err != nil {
+			// FIXME: We could print each line as raw text maybe when it's not working?
+			debug.Println(err)
+		} else {
+			buffer.WriteByte(' ')
+			buffer.Write(jsonBytes)
+		}
+	}
+
+	return buffer.String(), nil
+}
+
+func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[string]interface{}) (string, error) {
 	var buffer bytes.Buffer
 	parsedTime, err := time.Parse(time.RFC3339, lineData["time"].(string))
 	if err != nil {
@@ -156,12 +218,10 @@ func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interf
 }
 
 func (p *processor) colorizeSeverity(severity string) aurora.Value {
-	color := severityToColor[severity]
+	color := severityToColor[strings.ToLower(severity)]
 	if color == 0 {
 		color = BlueFg
 	}
 
 	return Colorize(severity, color)
 }
-
-var errNonZapLine error

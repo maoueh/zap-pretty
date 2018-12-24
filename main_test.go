@@ -1,9 +1,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -22,6 +19,29 @@ func init() {
 	debug = log.New(os.Stdout, "[pretty-test] ", 0)
 }
 
+func TestStandardNonJSON(t *testing.T) {
+	runLogTests(t, []logTest{
+		{
+			name: "single_non_log_line",
+			lines: []string{
+				"A non-JSON string line",
+			},
+			expectedLines: []string{
+				"A non-JSON string line",
+			},
+		},
+		{
+			name: "single_log_line_invalid_json",
+			lines: []string{
+				`{"severity":"s","time":"t","caller":"c:0"`,
+			},
+			expectedLines: []string{
+				`{"severity":"s","time":"t","caller":"c:0"`,
+			},
+		},
+	})
+}
+
 func TestStandardNewProduction(t *testing.T) {
 	runLogTests(t, []logTest{
 		{
@@ -30,8 +50,7 @@ func TestStandardNewProduction(t *testing.T) {
 				`{"level":"info","ts":1545445711.144533,"caller":"c","msg":"m"}`,
 			},
 			expectedLines: []string{
-				// FIXME: Fixed when implementing zap.NewProduction settings
-				``,
+				"[2018-12-21 21:28:31.144 EST] \x1b[32minfo\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m {\"msg\":\"m\"}",
 			},
 		},
 	})
@@ -49,12 +68,12 @@ func TestZapDriverNewProduction(t *testing.T) {
 			},
 		},
 		{
-			name: "single_non_log_line",
+			name: "single_log_line_missing_fields",
 			lines: []string{
-				"A non-JSON string line",
+				`{"severity":"s","time":"t","caller":"c:0"}`,
 			},
 			expectedLines: []string{
-				"A non-JSON string line",
+				`{"severity":"s","time":"t","caller":"c:0"}`,
 			},
 		},
 		{
@@ -84,22 +103,10 @@ func TestZapDriverNewProduction(t *testing.T) {
 	})
 }
 
-func zapdriverLine(severity string, time string) string {
-	return fmt.Sprintf(`{"severity":"%s","time":"%s","caller":"c:0","message":"m","folder":"f","labels":{},"logging.googleapis.com/sourceLocation":{"file":"f","line":"1","function":"fn"}}`, severity, time)
-}
-
 func runLogTests(t *testing.T, tests []logTest) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reader := bytes.NewReader([]byte(strings.Join(test.lines, "\n")))
-			writer := &bytes.Buffer{}
-
-			processor := &processor{
-				scanner: bufio.NewScanner(reader),
-				output:  writer,
-			}
-
-			processor.process()
+			writer := executeProcessorTest(test.lines)
 
 			outputLines := strings.Split(writer.String(), "\n")
 			require.Equal(t, test.expectedLines, outputLines)

@@ -41,13 +41,11 @@ zap_instrumented | zap-pretty
 This package is a "work in progress". Current version works but it's the initial version, still
 much more to do to make it production ready:
 
-- Support `zap.NewProduction` format which is quite different from `zapdriver.NewProduction`
-- Add more suppressed field for JSON output (with CLI argument to add more)
+- Support the various encoding config supported by Zap
 - Add CLI arguments similar to [pino-pretty](https://github.com/pinojs/pino-pretty#cli-arguments)
+- Add suppressing field for JSON output (with CLI argument to add more)
 - Refactor code to be more "nice"
-- Add benchmark to see how performant code is (or not)
 - Filtering support of log statements?
-- How to write JSON fields at the end of line?
 - Other ideas?
 
 ### CLI Arguments
