@@ -122,45 +122,15 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	secondsPart, nanosPart := math.Modf(nanosSinceEpoch)
 	parsedTime := time.Unix(int64(secondsPart), int64(nanosPart/time.Nanosecond.Seconds()))
 
-	buffer.WriteString(fmt.Sprintf("[%s]", parsedTime.Format("2006-01-02 15:04:05.000 MST")))
+	p.writeHeader(&buffer, &parsedTime, lineData["level"].(string), lineData["caller"].(string), lineData["msg"].(string))
 
-	buffer.WriteByte(' ')
-	buffer.WriteString(p.colorizeSeverity(lineData["level"].(string)).String())
-
-	buffer.WriteByte(' ')
-	buffer.WriteString(Gray(fmt.Sprintf("(%s)", lineData["caller"].(string))).String())
-
-	buffer.WriteByte(' ')
-	buffer.WriteString(Blue(lineData["msg"].(string)).String())
-
-	// Standard stuff
+	// Delete standard stuff from data fields
 	delete(lineData, "level")
 	delete(lineData, "ts")
 	delete(lineData, "caller")
 	delete(lineData, "message")
 
-	if len(lineData) > 0 {
-		// FIXME: This is poor, we would like to print in a single line stuff that are not too
-		//        big. But what represents a too big value exactly? We would need to serialize to
-		//        JSON, check lenght, if smaller than threshold, print with space, otherwise
-		//        re-serialize with pretty-printing stuff
-		var jsonBytes []byte
-		var err error
-
-		if len(lineData) <= 2 {
-			jsonBytes, err = json.Marshal(lineData)
-		} else {
-			jsonBytes, err = json.MarshalIndent(lineData, "", "  ")
-		}
-
-		if err != nil {
-			// FIXME: We could print each line as raw text maybe when it's not working?
-			debug.Println(err)
-		} else {
-			buffer.WriteByte(' ')
-			buffer.Write(jsonBytes)
-		}
-	}
+	p.writeJSON(&buffer, lineData)
 
 	return buffer.String(), nil
 }
@@ -172,49 +142,59 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 		return "", err
 	}
 
-	buffer.WriteString(fmt.Sprintf("[%s]", parsedTime.Format("2006-01-02 15:04:01.000 MST")))
+	p.writeHeader(&buffer, &parsedTime, lineData["severity"].(string), lineData["caller"].(string), lineData["message"].(string))
 
-	buffer.WriteByte(' ')
-	buffer.WriteString(p.colorizeSeverity(lineData["severity"].(string)).String())
-
-	buffer.WriteByte(' ')
-	buffer.WriteString(Gray(fmt.Sprintf("(%s)", lineData["caller"].(string))).String())
-
-	buffer.WriteByte(' ')
-	buffer.WriteString(Blue(lineData["message"].(string)).String())
-
-	// Standard stuff
+	// Delete standard stuff from data fields
 	delete(lineData, "time")
 	delete(lineData, "severity")
 	delete(lineData, "caller")
 	delete(lineData, "message")
-
-	// Extra stuff
 	delete(lineData, "labels")
 	delete(lineData, "logging.googleapis.com/sourceLocation")
 
-	if len(lineData) > 0 {
-		// FIXME: This is poor, we would like to print in a single line stuff that are not too
-		//        big. But what represents a too big value exactly? We would need to serialize to
-		//        JSON, check lenght, if smaller than threshold, print with space, otherwise
-		//        re-serialize with pretty-printing stuff
-		var jsonBytes []byte
-		if len(lineData) <= 2 {
-			jsonBytes, err = json.Marshal(lineData)
-		} else {
-			jsonBytes, err = json.MarshalIndent(lineData, "", "  ")
-		}
-
-		if err != nil {
-			// FIXME: We could print each line as raw text maybe when it's not working?
-			debug.Println(err)
-		} else {
-			buffer.WriteByte(' ')
-			buffer.Write(jsonBytes)
-		}
-	}
+	p.writeJSON(&buffer, lineData)
 
 	return buffer.String(), nil
+}
+
+func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller string, message string) {
+	buffer.WriteString(fmt.Sprintf("[%s]", timestamp.Format("2006-01-02 15:04:05.000 MST")))
+
+	buffer.WriteByte(' ')
+	buffer.WriteString(p.colorizeSeverity(severity).String())
+
+	buffer.WriteByte(' ')
+	buffer.WriteString(Gray(fmt.Sprintf("(%s)", caller)).String())
+
+	buffer.WriteByte(' ')
+	buffer.WriteString(Blue(message).String())
+}
+
+func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{}) {
+	if len(data) <= 0 {
+		return
+	}
+
+	// FIXME: This is poor, we would like to print in a single line stuff that are not too
+	//        big. But what represents a too big value exactly? We would need to serialize to
+	//        JSON, check lenght, if smaller than threshold, print with space, otherwise
+	//        re-serialize with pretty-printing stuff
+	var jsonBytes []byte
+	var err error
+
+	if len(data) <= 2 {
+		jsonBytes, err = json.Marshal(data)
+	} else {
+		jsonBytes, err = json.MarshalIndent(data, "", "  ")
+	}
+
+	if err != nil {
+		// FIXME: We could print each line as raw text maybe when it's not working?
+		debug.Println(err)
+	} else {
+		buffer.WriteByte(' ')
+		buffer.Write(jsonBytes)
+	}
 }
 
 func (p *processor) colorizeSeverity(severity string) aurora.Value {

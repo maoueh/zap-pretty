@@ -64,7 +64,7 @@ func TestZapDriverNewProduction(t *testing.T) {
 				zapdriverLine("INFO", "2018-12-21T23:06:49.435919-05:00"),
 			},
 			expectedLines: []string{
-				"[2018-12-21 23:06:12.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
+				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
 			},
 		},
 		{
@@ -83,8 +83,8 @@ func TestZapDriverNewProduction(t *testing.T) {
 				zapdriverLine("DEBUG", "2018-12-21T23:06:49.436920-05:00"),
 			},
 			expectedLines: []string{
-				"[2018-12-21 23:06:12.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
-				"[2018-12-21 23:06:12.436 EST] \x1b[34mDEBUG\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
+				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
+				"[2018-12-21 23:06:49.436 EST] \x1b[34mDEBUG\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
 			},
 		},
 		{
@@ -95,9 +95,9 @@ func TestZapDriverNewProduction(t *testing.T) {
 				zapdriverLine("DEBUG", "2018-12-21T23:06:49.436920-05:00"),
 			},
 			expectedLines: []string{
-				"[2018-12-21 23:06:12.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
+				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
 				"A non-JSON string line",
-				"[2018-12-21 23:06:12.436 EST] \x1b[34mDEBUG\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
+				"[2018-12-21 23:06:49.436 EST] \x1b[34mDEBUG\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
 			},
 		},
 	})
