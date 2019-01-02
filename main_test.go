@@ -50,7 +50,7 @@ func TestStandardNewProduction(t *testing.T) {
 				`{"level":"info","ts":1545445711.144533,"caller":"c","msg":"m"}`,
 			},
 			expectedLines: []string{
-				"[2018-12-21 21:28:31.144 EST] \x1b[32minfo\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m {\"msg\":\"m\"}",
+				"[2018-12-21 21:28:31.144 EST] \x1b[32minfo\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m",
 			},
 		},
 	})

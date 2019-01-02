@@ -128,7 +128,7 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	delete(lineData, "level")
 	delete(lineData, "ts")
 	delete(lineData, "caller")
-	delete(lineData, "message")
+	delete(lineData, "msg")
 
 	p.writeJSON(&buffer, lineData)
 
