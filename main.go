@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,13 @@ import (
 
 var debug = log.New(ioutil.Discard, "", 0)
 var severityToColor map[string]Color
+
+// Provided via ldflags by goreleaser automatically
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 var errNonZapLine = errors.New("non-zap line")
 
@@ -43,13 +51,26 @@ type processor struct {
 	output  io.Writer
 }
 
+var versionFlag = flag.Bool("version", false, "Prints version information and exit")
+
 func main() {
+	flag.Parse()
+
+	if *versionFlag {
+		printVersion()
+		os.Exit(0)
+	}
+
 	processor := &processor{
 		scanner: bufio.NewScanner(os.Stdin),
 		output:  os.Stdout,
 	}
 
 	processor.process()
+}
+
+func printVersion() {
+	fmt.Printf("zap-pretty %s (commit: %s, date: %v)\n", version, commit, date)
 }
 
 func (p *processor) process() {

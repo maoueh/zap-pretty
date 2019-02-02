@@ -1,0 +1,48 @@
+project_name: zap-pretty
+before:
+  hooks:
+    - go mod download
+    - go generate ./...
+builds:
+- env:
+  - CGO_ENABLED=0
+archive:
+  replacements:
+    darwin: Darwin
+    linux: Linux
+    windows: Windows
+    amd64: x86_64
+  files:
+      - LICENSE.md
+      - README.md
+      - CHANGELOG.md
+checksum:
+  name_template: 'checksums.txt'
+sign:
+  cmd: keybase
+  args:
+  - sign
+  - --infile
+  - $artifact
+  - --binary
+  - --outfile
+  - $signature
+  - --detached
+  signature: ${artifact}.sig
+  artifacts: checksum
+snapshot:
+  name_template: "{{ .Tag }}-dirty"
+brew:
+  github:
+    owner: maoueh
+    name: homebrew-tap
+  homepage: "https://github.com/maoueh/zap-pretty"
+  description: "A tiny binary to pretty-print Zap production JSON lines"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
+    - '^support:'
+    - '^chore:'

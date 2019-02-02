@@ -1,0 +1,6 @@
+## Env
+.envrc
+
+## Go
+/dist
+/vendor
