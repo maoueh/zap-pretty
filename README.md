@@ -17,6 +17,22 @@ Compatible with `zap.NewProduction` and `zapdriver.NewProduction` formats out of
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install maoueh/tap/zap-pretty
+```
+
+### Binary
+
+Download the binary package for your platform, the list is available at
+https://github.com/maoueh/zap-pretty/releases.
+
+Unpack the binary somewhere on your disk and ensure the binary is in a
+directory included in your $PATH variable.
+
+### Source
+
 ```sh
 $ go get -u github.com/maoueh/zap-pretty
 ```
