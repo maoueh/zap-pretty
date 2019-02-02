@@ -7,19 +7,21 @@ logging library. It reads a standard Zap JSON log line:
 {"severity":"INFO","time":"2018-12-10T17:06:24.10107832Z","caller":"main.go:45","message":"doing some stuff","count":2}
 ```
 
-And formats it to:
+And formats it to (with coloring):
 
 ```
 [2018-12-10 17:06:24.101 UTC] INFO (main.go:45) doing some stuff {"count":2}
 ```
 
-**NOTE** Only compatible with `zapdriver.NewProduction` format and the likes for now.
+Compatible with `zap.NewProduction` and `zapdriver.NewProduction` formats out of the box.
 
 ## Install
 
 ```sh
 $ go get -u github.com/maoueh/zap-pretty
 ```
+
+**Note** Source installation requires Go 1.11+.
 
 ## Usage
 
@@ -33,20 +35,34 @@ zap_instrumented | zap-pretty
 
 #### No Conversion
 
-- Ensures that JSON line you are seeing is redirected to standard output, check if it works
-  when doing `zap_instrumented &> /dev/null | zap-pretty`.
+By default, when using `zap.NewProductionConfig()`, all log statements are issued on
+the `/dev/stderr` stream. That means that if you plainly do `zap_instrumented | zap-pretty`,
+your JSON lines will not be prettified.
 
-### Current State
+Why? Simply because you are actually piping only the `stdout` stream to `zap-pretty`
+but your actual log statements are written on `stderr` so they never make their way
+up to `zap-pretty`.
 
-This package is a "work in progress". Current version works but it's the initial version, still
-much more to do to make it production ready:
+Ensures that JSON line you are seeing is redirected to standard output, if it works
+when doing `zap_instrumented 2>&1 | zap-pretty`, then it means logs are going out
+to `stderr`.
 
-- Support the various encoding config supported by Zap
-- Add CLI arguments similar to [pino-pretty](https://github.com/pinojs/pino-pretty#cli-arguments)
-- Add suppressing field for JSON output (with CLI argument to add more)
-- Refactor code to be more "nice"
-- Filtering support of log statements?
-- Other ideas?
+You can live like this, but if you want to customize your logs to output to `stdout`
+instead, simply perform the following changes:
+
+```
+    return zap.NewProduction()
+```
+
+To:
+
+```
+    config := zap.NewProductionConfig()
+    config.OutputPaths = []string{"stdout"}
+    config.ErrorOutputPaths = []string{"stdout"}
+
+    return config.Build()
+```
 
 ### CLI Arguments
 
