@@ -61,6 +61,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	go NewSignaler().forwardAllSignalsToProcessGroup()
+
 	processor := &processor{
 		scanner: bufio.NewScanner(os.Stdin),
 		output:  os.Stdout,
