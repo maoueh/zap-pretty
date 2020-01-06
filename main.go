@@ -332,12 +332,12 @@ func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{})
 
 	// FIXME: This is poor, we would like to print in a single line stuff that are not too
 	//        big. But what represents a too big value exactly? We would need to serialize to
-	//        JSON, check lenght, if smaller than threshold, print with space, otherwise
+	//        JSON, check length, if smaller than threshold, print with space, otherwise
 	//        re-serialize with pretty-printing stuff
 	var jsonBytes []byte
 	var err error
 
-	if len(data) <= 2 {
+	if len(data) <= 3 {
 		jsonBytes, err = json.Marshal(data)
 	} else {
 		jsonBytes, err = json.MarshalIndent(data, "", "  ")
