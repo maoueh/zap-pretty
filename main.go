@@ -196,7 +196,23 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	delete(lineData, "labels")
 	delete(lineData, "logging.googleapis.com/sourceLocation")
 
+	errorVerbose := ""
+	if t, ok := lineData["errorVerbose"].(string); ok && t != "" {
+		delete(lineData, "errorVerbose")
+		errorVerbose = t
+	}
+
+	stacktrace := ""
+	if t, ok := lineData["stacktrace"].(string); ok && t != "" {
+		delete(lineData, "stacktrace")
+		stacktrace = t
+	}
+
 	p.writeJSON(&buffer, lineData)
+
+	if errorVerbose != "" || stacktrace != "" {
+		p.writeErrorDetails(&buffer, errorVerbose, stacktrace)
+	}
 
 	return buffer.String(), nil
 }
@@ -212,6 +228,101 @@ func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, seve
 
 	buffer.WriteByte(' ')
 	buffer.WriteString(Blue(message).String())
+}
+
+var temporaryStackSpacer = "_-@\\!/@-_"
+
+func (p *processor) writeErrorDetails(buffer *bytes.Buffer, errorVerbose string, stacktrace string) {
+	if stacktrace != "" {
+		buffer.WriteByte('\n')
+		buffer.WriteString("Stacktrace\n")
+		buffer.WriteString("    " + strings.ReplaceAll(stacktrace, "\n", "\n    "))
+	}
+
+	if stacktrace != "" && errorVerbose != "" {
+		// If both are present, stacktrace has print something, so let's add an extra empty line here for spacing
+		buffer.WriteByte('\n')
+	}
+
+	// The `errorVerbose` seems to contain a stack trace for each error captured. This behavior
+	// comes from `derr.Wrap` that create a stack of errors, each of the item having an associate
+	// stacktrace.
+	if errorVerbose != "" {
+		writeErrorVerbose(buffer, errorVerbose)
+	}
+}
+
+func writeErrorVerbose(buffer *bytes.Buffer, errorVerbose string) {
+	joinedErrorVerbose := strings.ReplaceAll(errorVerbose, "\n\t", temporaryStackSpacer)
+	scanner := bufio.NewScanner(strings.NewReader("  " + joinedErrorVerbose))
+
+	var linePrevious *string
+	var lineCurrent *string
+	startedSection := false
+
+	buffer.WriteByte('\n')
+	buffer.WriteString("Error Verbose\n")
+	for scanner.Scan() {
+		if lineCurrent != nil {
+			linePrevious = lineCurrent
+		}
+
+		line := scanner.Text()
+		lineCurrent = &line
+
+		if linePrevious != nil {
+			isPreviousStackLine := strings.Contains(*linePrevious, temporaryStackSpacer)
+			isStackLine := strings.Contains(line, temporaryStackSpacer)
+
+			if isStackLine && !isPreviousStackLine {
+				// This condition means we are at a section boundary, let's add some extra spacing here
+				writeStackSectionTitle(buffer, *linePrevious)
+				startedSection = true
+			} else if isPreviousStackLine {
+				writeStackLine(buffer, *linePrevious, startedSection, false)
+				startedSection = false
+			} else {
+				buffer.WriteString(*linePrevious)
+				buffer.WriteByte('\n')
+
+				startedSection = false
+			}
+		}
+	}
+
+	if lineCurrent != nil {
+		isStackLine := strings.Contains(*lineCurrent, temporaryStackSpacer)
+
+		if isStackLine {
+			writeStackLine(buffer, *lineCurrent, startedSection, true)
+		} else {
+			// It means we have seen more than one line, so we need the extra padding
+			if linePrevious != nil {
+				buffer.WriteString("  ")
+			}
+
+			buffer.WriteString(*lineCurrent)
+		}
+	}
+}
+
+func writeStackSectionTitle(buffer *bytes.Buffer, line string) {
+	buffer.WriteByte('\n')
+	buffer.WriteString("  ")
+	buffer.WriteString(line)
+}
+
+func writeStackLine(buffer *bytes.Buffer, line string, isFirstStack, isLastStack bool) {
+	if isFirstStack {
+		buffer.WriteByte('\n')
+	}
+
+	buffer.WriteString("    ")
+	buffer.WriteString(strings.Replace(line, temporaryStackSpacer, "\n    \t", 2))
+
+	if !isLastStack {
+		buffer.WriteByte('\n')
+	}
 }
 
 func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{}) {

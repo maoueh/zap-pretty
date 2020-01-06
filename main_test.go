@@ -56,6 +56,20 @@ func TestStandardNewProduction(t *testing.T) {
 	})
 }
 
+func TestStandardFieldTs_ISO8601_string(t *testing.T) {
+	runLogTests(t, []logTest{
+		{
+			name: "default",
+			lines: []string{
+				`{"level":"info","ts":"2019-12-06T19:40:20.627Z","caller":"c","msg":"m"}`,
+			},
+			expectedLines: []string{
+				"[2019-12-06 14:40:20.627 EST] \x1b[32minfo\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m",
+			},
+		},
+	})
+}
+
 func TestZapDriverNewProduction(t *testing.T) {
 	runLogTests(t, []logTest{
 		{
@@ -98,6 +112,79 @@ func TestZapDriverNewProduction(t *testing.T) {
 				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
 				"A non-JSON string line",
 				"[2018-12-21 23:06:49.436 EST] \x1b[34mDEBUG\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
+			},
+		},
+		{
+			name: "error_verbose_alone_right_format",
+			lines: []string{
+				`{"severity":"ERROR","time":"2019-04-15T15:49:55.676461-04:00","caller":"c","message":"m","errorVerbose":"initial message\nSectionA\nStack1a\n\tFile1a\nStack2a\n\tFile2a\nSectionB\nStack1b\n\tFile1b\nStack2b\n\tFile2b"}`,
+			},
+			expectedLines: []string{
+				"[2019-04-15 15:49:55.676 EDT] \x1b[31mERROR\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m",
+				`Error Verbose`,
+				`  initial message`,
+				``,
+				`  SectionA`,
+				`    Stack1a`,
+				"    \tFile1a",
+				`    Stack2a`,
+				"    \tFile2a",
+				``,
+				`  SectionB`,
+				`    Stack1b`,
+				"    \tFile1b",
+				`    Stack2b`,
+				"    \tFile2b",
+			},
+		},
+		{
+			name: "error_verbose_alone_wrong_format_single_line",
+			lines: []string{
+				`{"severity":"ERROR","time":"2019-04-15T15:49:55.676461-04:00","caller":"c","message":"m","errorVerbose":"single line"}`,
+			},
+			expectedLines: []string{
+				"[2019-04-15 15:49:55.676 EDT] \x1b[31mERROR\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m",
+				`Error Verbose`,
+				`  single line`,
+			},
+		},
+		{
+			name: "error_verbose_alone_wrong_format_multi_line",
+			lines: []string{
+				`{"severity":"ERROR","time":"2019-04-15T15:49:55.676461-04:00","caller":"c","message":"m","errorVerbose":"multi\nline"}`,
+			},
+			expectedLines: []string{
+				"[2019-04-15 15:49:55.676 EDT] \x1b[31mERROR\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m",
+				`Error Verbose`,
+				`  multi`,
+				`  line`,
+			},
+		},
+		{
+			name: "error_verbose_alone_wrong_format_for_stack_line",
+			lines: []string{
+				`{"severity":"ERROR","time":"2019-04-15T15:49:55.676461-04:00","caller":"c","message":"m","errorVerbose":"Stack1b\n\tFile1bStack2b\n\tFile2b"}`,
+			},
+			expectedLines: []string{
+				"[2019-04-15 15:49:55.676 EDT] \x1b[31mERROR\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m",
+				`Error Verbose`,
+				`      Stack1b`,
+				"    \tFile1bStack2b",
+				"    \tFile2b",
+			},
+		},
+		{
+			name: "stacktrace_alone_right_format",
+			lines: []string{
+				`{"severity":"ERROR","time":"2019-04-15T15:49:55.676461-04:00","caller":"c","message":"m","stacktrace":"Stack1a\n\tFile1a\nStack2a\n\tFile2a"}`,
+			},
+			expectedLines: []string{
+				"[2019-04-15 15:49:55.676 EDT] \x1b[31mERROR\x1b[0m \x1b[37m(c)\x1b[0m \x1b[34mm\x1b[0m",
+				`Stacktrace`,
+				`    Stack1a`,
+				"    \tFile1a",
+				`    Stack2a`,
+				"    \tFile2a",
 			},
 		},
 	})
