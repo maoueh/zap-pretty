@@ -139,13 +139,13 @@ func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interf
 }
 
 func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]interface{}) (string, error) {
+	logTimestamp, err := tsFieldToTimestamp(lineData["ts"])
+	if err != nil {
+		return "", fmt.Errorf("unable to process field 'ts': %s", err)
+	}
+
 	var buffer bytes.Buffer
-
-	nanosSinceEpoch := lineData["ts"].(float64) * time.Second.Seconds()
-	secondsPart, nanosPart := math.Modf(nanosSinceEpoch)
-	parsedTime := time.Unix(int64(secondsPart), int64(nanosPart/time.Nanosecond.Seconds()))
-
-	p.writeHeader(&buffer, &parsedTime, lineData["level"].(string), lineData["caller"].(string), lineData["msg"].(string))
+	p.writeHeader(&buffer, logTimestamp, lineData["level"].(string), lineData["caller"].(string), lineData["msg"].(string))
 
 	// Delete standard stuff from data fields
 	delete(lineData, "level")
@@ -158,11 +158,32 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	return buffer.String(), nil
 }
 
+var zeroTime = time.Time{}
+
+func tsFieldToTimestamp(input interface{}) (*time.Time, error) {
+	switch v := input.(type) {
+	case float64:
+		nanosSinceEpoch := v * time.Second.Seconds()
+		secondsPart, nanosPart := math.Modf(nanosSinceEpoch)
+		timestamp := time.Unix(int64(secondsPart), int64(nanosPart/time.Nanosecond.Seconds()))
+
+		return &timestamp, nil
+
+	case string:
+		timestamp, err := time.Parse(time.RFC3339Nano, v)
+		timestamp = timestamp.Local()
+
+		return &timestamp, err
+	}
+
+	return &zeroTime, fmt.Errorf("don't know how to turn %t (value %s) into a time.Time object", input, input)
+}
+
 func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[string]interface{}) (string, error) {
 	var buffer bytes.Buffer
 	parsedTime, err := time.Parse(time.RFC3339, lineData["time"].(string))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("unable to process field 'time': %s", err)
 	}
 
 	p.writeHeader(&buffer, &parsedTime, lineData["severity"].(string), lineData["caller"].(string), lineData["message"].(string))
