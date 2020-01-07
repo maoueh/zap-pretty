@@ -4,3 +4,5 @@
 ## Go
 /dist
 /vendor
+/zap-pretty
+/zap-pretty.exe
