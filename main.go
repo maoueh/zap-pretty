@@ -231,7 +231,7 @@ func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, seve
 	buffer.WriteString(p.colorizeSeverity(severity).String())
 
 	buffer.WriteByte(' ')
-	buffer.WriteString(Gray(fmt.Sprintf("(%s)", caller)).String())
+	buffer.WriteString(Gray(12, fmt.Sprintf("(%s)", caller)).String())
 
 	buffer.WriteByte(' ')
 	buffer.WriteString(Blue(message).String())
