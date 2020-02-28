@@ -82,6 +82,15 @@ func TestZapDriverNewProduction(t *testing.T) {
 			},
 		},
 		{
+			name: "line_with_timestamp_vs_time",
+			lines: []string{
+				`{"severity":"INFO","timestamp":"2018-12-21T23:06:49.435919-05:00","caller":"c:0","message":"m","folder":"f","labels":{},"logging.googleapis.com/sourceLocation":{"file":"f","line":"1","function":"fn"}}`,
+			},
+			expectedLines: []string{
+				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[37m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
+			},
+		},
+		{
 			name: "single_log_line_missing_fields",
 			lines: []string{
 				`{"severity":"s","time":"t","caller":"c:0"}`,

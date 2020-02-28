@@ -93,7 +93,7 @@ func (p *processor) process() {
 
 func (p *processor) processLine(line string) {
 	debug.Println("Processing line", line)
-	if !p.mightBeJson(line) {
+	if !p.mightBeJSON(line) {
 		fmt.Fprint(p.output, line)
 		return
 	}
@@ -121,7 +121,7 @@ func (p *processor) processLine(line string) {
 	}
 }
 
-func (p *processor) mightBeJson(line string) bool {
+func (p *processor) mightBeJSON(line string) bool {
 	// TODO: Improve optimization when some benchmarks are available
 	return strings.Contains(line, "{")
 }
@@ -131,7 +131,7 @@ func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interf
 		return p.maybePrettyPrintZapLine(line, lineData)
 	}
 
-	if lineData["severity"] != nil && lineData["time"] != nil && lineData["caller"] != nil && lineData["message"] != nil {
+	if lineData["severity"] != nil && (lineData["time"] != nil || lineData["timestamp"] != nil) && lineData["caller"] != nil && lineData["message"] != nil {
 		return p.maybePrettyPrintZapdriverLine(line, lineData)
 	}
 
@@ -180,8 +180,15 @@ func tsFieldToTimestamp(input interface{}) (*time.Time, error) {
 }
 
 func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[string]interface{}) (string, error) {
+	timeField := "time"
+	timeValue := lineData[timeField]
+	if lineData[timeField] == nil {
+		timeField = "timestamp"
+		timeValue = lineData[timeField]
+	}
+
 	var buffer bytes.Buffer
-	parsedTime, err := time.Parse(time.RFC3339, lineData["time"].(string))
+	parsedTime, err := time.Parse(time.RFC3339, timeValue.(string))
 	if err != nil {
 		return "", fmt.Errorf("unable to process field 'time': %s", err)
 	}
@@ -189,7 +196,7 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	p.writeHeader(&buffer, &parsedTime, lineData["severity"].(string), lineData["caller"].(string), lineData["message"].(string))
 
 	// Delete standard stuff from data fields
-	delete(lineData, "time")
+	delete(lineData, timeField)
 	delete(lineData, "severity")
 	delete(lineData, "caller")
 	delete(lineData, "message")
