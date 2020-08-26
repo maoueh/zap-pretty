@@ -7,13 +7,17 @@ import (
 	"strings"
 )
 
-func executeProcessorTest(lines []string) *bytes.Buffer {
+func executeProcessorTest(lines []string, options ...processorOption) *bytes.Buffer {
 	reader := bytes.NewReader([]byte(strings.Join(lines, "\n")))
 	writer := &bytes.Buffer{}
 
 	processor := &processor{
 		scanner: bufio.NewScanner(reader),
 		output:  writer,
+	}
+
+	for _, opt := range options {
+		opt.apply(processor)
 	}
 
 	processor.process()

@@ -47,6 +47,30 @@ Simply pipe the output of the CLI tool generating Zap JSON log lines to the `zap
 zap_instrumented | zap-pretty
 ```
 
+The tool supports Zap standard production format as well as the Zapdriver standard format (for
+consumption by Google Stackdriver).
+
+### Zapdriver
+
+When using the Zapdriver format, those fields are removed by default from the prettified version
+to reduce the clutter of the logs:
+
+- `labels`
+- `serviceContext`
+- `logging.googleapis.com/labels`
+- `logging.googleapis.com/sourceLocation`
+
+If you want to see those fields, you can use `--all` flag:
+
+```sh
+zap_instrumented | zap-pretty --all
+```
+
+### CLI Arguments
+
+- `--all` - Show all fields of the line, even those filtered out by default for the active logger format (default `false`).
+- `--version` - Show version information.
+
 ### Troubleshoot
 
 #### No Conversion
@@ -79,10 +103,6 @@ To:
 
     return config.Build()
 ```
-
-### CLI Arguments
-
-None for now.
 
 ## License
 

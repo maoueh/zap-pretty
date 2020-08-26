@@ -13,6 +13,7 @@ type logTest struct {
 	name          string
 	lines         []string
 	expectedLines []string
+	options       []processorOption
 }
 
 func init() {
@@ -196,13 +197,24 @@ func TestZapDriverNewProduction(t *testing.T) {
 				"    \tFile2a",
 			},
 		},
+
+		{
+			name: "line_with_filtered_labels_when_show_all_fields",
+			lines: []string{
+				`{"severity":"INFO","timestamp":"2018-12-21T23:06:49.435919-05:00","caller":"c:0","message":"m","folder":"f","labels":{},"logging.googleapis.com/sourceLocation":{"file":"f","line":"1","function":"fn"}}`,
+			},
+			expectedLines: []string{
+				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[38;5;244m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\",\"labels\":{},\"logging.googleapis.com/sourceLocation\":{\"file\":\"f\",\"function\":\"fn\",\"line\":\"1\"}}",
+			},
+			options: []processorOption{withAllFields()},
+		},
 	})
 }
 
 func runLogTests(t *testing.T, tests []logTest) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			writer := executeProcessorTest(test.lines)
+			writer := executeProcessorTest(test.lines, test.options...)
 
 			outputLines := strings.Split(writer.String(), "\n")
 			require.Equal(t, test.expectedLines, outputLines)

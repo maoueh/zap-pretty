@@ -48,12 +48,32 @@ func init() {
 	severityToColor["fatal"] = RedFg
 }
 
-type processor struct {
-	scanner *bufio.Scanner
-	output  io.Writer
+type processorOption interface {
+	apply(p *processor)
 }
 
+type processorOptionFunc func(p *processor)
+
+func (f processorOptionFunc) apply(p *processor) {
+	f(p)
+}
+
+func withAllFields() processorOption {
+	return processorOptionFunc(func(p *processor) {
+		p.showAllFields = true
+	})
+}
+
+type processor struct {
+	scanner       *bufio.Scanner
+	output        io.Writer
+	showAllFields bool
+}
+
+var showAllFlag = flag.Bool("all", false, "Show ")
 var versionFlag = flag.Bool("version", false, "Prints version information and exit")
+
+var showAll = false
 
 func main() {
 	flag.Parse()
@@ -66,8 +86,9 @@ func main() {
 	go NewSignaler().forwardAllSignalsToProcessGroup()
 
 	processor := &processor{
-		scanner: bufio.NewScanner(os.Stdin),
-		output:  os.Stdout,
+		scanner:       bufio.NewScanner(os.Stdin),
+		output:        os.Stdout,
+		showAllFields: *showAllFlag,
 	}
 
 	processor.process()
@@ -215,8 +236,13 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	delete(lineData, "severity")
 	delete(lineData, "caller")
 	delete(lineData, "message")
-	delete(lineData, "labels")
-	delete(lineData, "logging.googleapis.com/sourceLocation")
+
+	if !p.showAllFields {
+		delete(lineData, "labels")
+		delete(lineData, "serviceContext")
+		delete(lineData, "logging.googleapis.com/labels")
+		delete(lineData, "logging.googleapis.com/sourceLocation")
+	}
 
 	errorVerbose := ""
 	if t, ok := lineData["errorVerbose"].(string); ok && t != "" {
