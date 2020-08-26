@@ -20,6 +20,7 @@ import (
 )
 
 var debug = log.New(ioutil.Discard, "", 0)
+var debugEnabled = false
 var severityToColor map[string]Color
 
 // Provided via ldflags by goreleaser automatically
@@ -34,6 +35,7 @@ var errNonZapLine = errors.New("non-zap line")
 func init() {
 	if os.Getenv("ZAP_PRETTY_DEBUG") != "" {
 		debug = log.New(os.Stderr, "[pretty-debug] ", 0)
+		debugEnabled = true
 	}
 
 	severityToColor = make(map[string]Color)
@@ -87,13 +89,14 @@ func (p *processor) process() {
 	}
 
 	if err := p.scanner.Err(); err != nil {
-		debug.Println("Scanner terminated with error", err)
+		debugPrintln("Scanner terminated with error: %s", err)
 	}
 }
 
 func (p *processor) processLine(line string) {
-	debug.Println("Processing line", line)
+	debugPrintln("Processing line: %s", line)
 	if !p.mightBeJSON(line) {
+		debugPrintln("Does not look like a JSON line, ending processing")
 		fmt.Fprint(p.output, line)
 		return
 	}
@@ -101,8 +104,8 @@ func (p *processor) processLine(line string) {
 	var lineData map[string]interface{}
 	err := json.Unmarshal([]byte(line), &lineData)
 	if err != nil {
+		debugPrintln("unable to unmarshal line as JSON: %s", err)
 		fmt.Fprint(p.output, line)
-		debug.Println(err)
 		return
 	}
 
@@ -113,10 +116,12 @@ func (p *processor) processLine(line string) {
 
 		switch err {
 		case errNonZapLine:
+			debugPrintln("Not a known zap line format")
 		default:
-			debug.Println(err)
+			debugPrintln("Not printing line due to error: %s", err)
 		}
 	} else {
+		debugPrintln("Printing!")
 		fmt.Fprint(p.output, prettyLine)
 	}
 }
@@ -153,7 +158,17 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	delete(lineData, "caller")
 	delete(lineData, "msg")
 
+	stacktrace := ""
+	if t, ok := lineData["stacktrace"].(string); ok && t != "" {
+		delete(lineData, "stacktrace")
+		stacktrace = t
+	}
+
 	p.writeJSON(&buffer, lineData)
+
+	if stacktrace != "" {
+		p.writeErrorDetails(&buffer, "", stacktrace)
+	}
 
 	return buffer.String(), nil
 }
@@ -352,7 +367,7 @@ func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{})
 
 	if err != nil {
 		// FIXME: We could print each line as raw text maybe when it's not working?
-		debug.Println(err)
+		debugPrintln("Unable to marshal data as JSON: %s", err)
 	} else {
 		buffer.WriteByte(' ')
 		buffer.Write(jsonBytes)
@@ -366,4 +381,10 @@ func (p *processor) colorizeSeverity(severity string) aurora.Value {
 	}
 
 	return Colorize(severity, color)
+}
+
+func debugPrintln(msg string, args ...interface{}) {
+	if debugEnabled {
+		debug.Println(fmt.Sprintf(msg, args...))
+	}
 }
