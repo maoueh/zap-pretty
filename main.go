@@ -115,18 +115,55 @@ func (p *processor) process() {
 }
 
 func (p *processor) processLine(line string) {
+	defer func() {
+		if err := recover(); err != nil {
+			p.unformattedPrintLine(line, "Panic occurred while processing line '%s', ending processing (%s)", line, err)
+		}
+	}()
+
 	debugPrintln("Processing line: %s", line)
-	if !p.mightBeJSON(line) {
-		debugPrintln("Does not look like a JSON line, ending processing")
-		fmt.Fprint(p.output, line)
+	reader := bytes.NewReader([]byte(line))
+	decoder := json.NewDecoder(reader)
+
+	token, err := decoder.Token()
+	if err != nil {
+		p.unformattedPrintLine(line, "Does not look like a JSON line, ending processing (%s)", err)
 		return
 	}
 
-	var lineData map[string]interface{}
-	err := json.Unmarshal([]byte(line), &lineData)
-	if err != nil {
-		debugPrintln("unable to unmarshal line as JSON: %s", err)
-		fmt.Fprint(p.output, line)
+	delim, ok := token.(json.Delim)
+	if !ok || delim != '{' {
+		p.unformattedPrintLine(line, "Expecting a JSON object delimited, ending processing")
+		return
+	}
+
+	lineData := map[string]interface{}{}
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			p.unformattedPrintLine(line, "Invalid JSON key in line, ending processing (%s)", err)
+			return
+		}
+
+		key := token.(string)
+
+		// if keys[key] {
+		// 	// Key duplicated here ...
+		// }
+		// keys[key] = true
+
+		var value interface{}
+		if err := decoder.Decode(&value); err != nil {
+			p.unformattedPrintLine(line, "Invalid JSON value in line, ending processing (%s)", err)
+			return
+		}
+
+		lineData[key] = value
+	}
+
+	// Read the ending delimiter of the JSON object
+	if _, err := decoder.Token(); err != nil {
+		p.unformattedPrintLine(line, "Invalid JSON, misssing object end delimiter in line, ending processing (%s)", err)
 		return
 	}
 
@@ -142,14 +179,8 @@ func (p *processor) processLine(line string) {
 			debugPrintln("Not printing line due to error: %s", err)
 		}
 	} else {
-		debugPrintln("Printing!")
 		fmt.Fprint(p.output, prettyLine)
 	}
-}
-
-func (p *processor) mightBeJSON(line string) bool {
-	// TODO: Improve optimization when some benchmarks are available
-	return strings.Contains(line, "{")
 }
 
 func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
@@ -212,7 +243,7 @@ func tsFieldToTimestamp(input interface{}) (*time.Time, error) {
 		return &timestamp, err
 	}
 
-	return &zeroTime, fmt.Errorf("don't know how to turn %t (value %s) into a time.Time object", input, input)
+	return &zeroTime, fmt.Errorf("don't know how to turn %T (value %s) into a time.Time object", input, input)
 }
 
 func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[string]interface{}) (string, error) {
@@ -293,7 +324,7 @@ func (p *processor) writeErrorDetails(buffer *bytes.Buffer, errorVerbose string,
 	}
 
 	// The `errorVerbose` seems to contain a stack trace for each error captured. This behavior
-	// comes from `derr.Wrap` that create a stack of errors, each of the item having an associate
+	// comes from `github.com/pkg/errors` that create a stack of errors, each of the item having an associate
 	// stacktrace.
 	if errorVerbose != "" {
 		writeErrorVerbose(buffer, errorVerbose)
@@ -409,8 +440,13 @@ func (p *processor) colorizeSeverity(severity string) aurora.Value {
 	return Colorize(severity, color)
 }
 
+func (p *processor) unformattedPrintLine(line string, message string, args ...interface{}) {
+	debugPrintln(message, args...)
+	fmt.Fprint(p.output, line)
+}
+
 func debugPrintln(msg string, args ...interface{}) {
 	if debugEnabled {
-		debug.Println(fmt.Sprintf(msg, args...))
+		debug.Printf(msg+"\n", args...)
 	}
 }

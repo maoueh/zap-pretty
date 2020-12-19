@@ -18,6 +18,7 @@ type logTest struct {
 
 func init() {
 	debug = log.New(os.Stdout, "[pretty-test] ", 0)
+	debugEnabled = os.Getenv("DEBUG") != ""
 }
 
 func TestStandardNonJSON(t *testing.T) {
@@ -208,6 +209,18 @@ func TestZapDriverNewProduction(t *testing.T) {
 			},
 			options: []processorOption{withAllFields()},
 		},
+
+		// Skip for now, requires transform json.Marshal into a streaming code that scans the input instead.
+		// {
+		// 	name: "panic_error_stackdriver",
+		// 	lines: []string{
+		// 		`{"severity":"DEBUG","time":"2020-11-18T10:47:54.507381105Z","caller":"counter.go:1","message":"msg","time":0.000182456}`,
+		// 	},
+		// 	expectedLines: []string{
+		// 		"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[38;5;244m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\",\"labels\":{},\"logging.googleapis.com/sourceLocation\":{\"file\":\"f\",\"function\":\"fn\",\"line\":\"1\"}}",
+		// 	},
+		// 	options: []processorOption{withAllFields()},
+		// },
 	})
 }
 
