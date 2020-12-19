@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -19,6 +20,10 @@ type logTest struct {
 func init() {
 	debug = log.New(os.Stdout, "[pretty-test] ", 0)
 	debugEnabled = os.Getenv("DEBUG") != ""
+
+	// All tests uses America/Toronto timezone so tests works on all servers
+	loc, _ := time.LoadLocation("America/Toronto")
+	time.Local = loc
 }
 
 func TestStandardNonJSON(t *testing.T) {
