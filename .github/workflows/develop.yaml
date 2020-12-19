@@ -1,17 +1,36 @@
+name: Build and Test
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - "**"
+
 jobs:
   build:
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-18.04
     strategy:
       matrix:
         go: [ 1.15', '1.14' ]
     name: Go ${{ matrix.go }} sample
     steps:
-      - uses: actions/checkout@v2
-
       - name: Setup go
         uses: actions/setup-go@v1
         with:
           go-version: ${{ matrix.go }}
+
+      - uses: actions/checkout@v2
+
+      - name: Cache Go modules
+        uses: actions/cache@v2
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Tests
         run: go test ./...
