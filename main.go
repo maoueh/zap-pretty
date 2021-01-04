@@ -85,8 +85,13 @@ func main() {
 
 	go NewSignaler().forwardAllSignalsToProcessGroup()
 
+	// FIXME: How could we make it more resilient to we simply drop the line instead? Would that mean our own "scanner"?
+	// New scanner with a maximum of 250MiB per line, pass that, we panic.
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Buffer(nil, 250*1024*1024)
+
 	processor := &processor{
-		scanner:       bufio.NewScanner(os.Stdin),
+		scanner:       scanner,
 		output:        os.Stdout,
 		showAllFields: *showAllFlag,
 	}
