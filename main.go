@@ -19,16 +19,16 @@ import (
 	. "github.com/logrusorgru/aurora"
 )
 
-var debug = log.New(ioutil.Discard, "", 0)
-var debugEnabled = false
-var severityToColor map[string]Color
-
 // Provided via ldflags by goreleaser automatically
 var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
 )
+
+var debug = log.New(ioutil.Discard, "", 0)
+var debugEnabled = false
+var severityToColor map[string]Color
 
 var errNonZapLine = errors.New("non-zap line")
 
