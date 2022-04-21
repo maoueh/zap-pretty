@@ -17,6 +17,7 @@ func BenchmarkZapdriver(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
+
 	b.SetBytes(byteCount)
 
 	for n := 0; n < b.N; n++ {

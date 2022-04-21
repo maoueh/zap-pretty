@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
+
+main() {
+  pushd "$ROOT" &> /dev/null
+
+  dry_run="true"
+
+  while getopts "hf" opt; do
+    case $opt in
+      h) usage && exit 0;;
+      f) dry_run="false";;
+      \?) usage_error "Invalid option: -$OPTARG";;
+    esac
+  done
+  shift $((OPTIND-1))
+
+  version="$1"; shift
+
+  if [[ $version == "" ]]; then
+    usage_error "parameter <version> is required"
+  fi
+
+  args=""
+  if [[ $dry_run == "true" ]]; then
+    args="--skip-publish"
+  fi
+
+  goreleaser --rm-dist $args
+}
+
+usage_error() {
+  message="$1"
+  exit_code="$2"
+
+  echo "ERROR: $message"
+  echo ""
+  usage
+  exit ${exit_code:-1}
+}
+
+usage() {
+  echo "usage: release [-f] <version>"
+  echo ""
+  echo "Perform the commands necessary to release a new version of the project, mainly"
+  echo "it does its tasks by calling 'goreleaser' and performing some Git commands."
+  echo ""
+  echo "The script runs in dry run automatically unless the '-f' option is provided."
+  echo ""
+  echo "Tasks"
+  echo "  ?"
+  echo ""
+  echo ""
+  echo "Options"
+  echo "    -h          Display help about this script"
+}
+
+main "$@"

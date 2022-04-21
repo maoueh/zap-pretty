@@ -189,11 +189,11 @@ func (p *processor) processLine(line string) {
 }
 
 func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
-	if lineData["level"] != nil && lineData["ts"] != nil && lineData["caller"] != nil && lineData["msg"] != nil {
+	if lineData["level"] != nil && lineData["ts"] != nil && lineData["msg"] != nil {
 		return p.maybePrettyPrintZapLine(line, lineData)
 	}
 
-	if lineData["severity"] != nil && (lineData["time"] != nil || lineData["timestamp"] != nil) && lineData["caller"] != nil && lineData["message"] != nil {
+	if lineData["severity"] != nil && (lineData["time"] != nil || lineData["timestamp"] != nil) && lineData["message"] != nil {
 		return p.maybePrettyPrintZapdriverLine(line, lineData)
 	}
 
@@ -206,13 +206,26 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 		return "", fmt.Errorf("unable to process field 'ts': %s", err)
 	}
 
+	var caller *string
+	if v := lineData["caller"]; v != nil {
+		callerStr := v.(string)
+		caller = &callerStr
+	}
+
+	var logger *string
+	if v := lineData["logger"]; v != nil {
+		loggerStr := v.(string)
+		logger = &loggerStr
+	}
+
 	var buffer bytes.Buffer
-	p.writeHeader(&buffer, logTimestamp, lineData["level"].(string), lineData["caller"].(string), lineData["msg"].(string))
+	p.writeHeader(&buffer, logTimestamp, lineData["level"].(string), caller, logger, lineData["msg"].(string))
 
 	// Delete standard stuff from data fields
 	delete(lineData, "level")
 	delete(lineData, "ts")
 	delete(lineData, "caller")
+	delete(lineData, "logger")
 	delete(lineData, "msg")
 
 	stacktrace := ""
@@ -265,12 +278,25 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 		return "", fmt.Errorf("unable to process field 'time': %s", err)
 	}
 
-	p.writeHeader(&buffer, &parsedTime, lineData["severity"].(string), lineData["caller"].(string), lineData["message"].(string))
+	var caller *string
+	if v := lineData["caller"]; v != nil {
+		callerStr := v.(string)
+		caller = &callerStr
+	}
+
+	var logger *string
+	if v := lineData["logger"]; v != nil {
+		loggerStr := v.(string)
+		logger = &loggerStr
+	}
+
+	p.writeHeader(&buffer, &parsedTime, lineData["severity"].(string), caller, logger, lineData["message"].(string))
 
 	// Delete standard stuff from data fields
 	delete(lineData, timeField)
 	delete(lineData, "severity")
 	delete(lineData, "caller")
+	delete(lineData, "logger")
 	delete(lineData, "message")
 
 	if !p.showAllFields {
@@ -301,14 +327,22 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	return buffer.String(), nil
 }
 
-func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller string, message string) {
+func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller *string, logger *string, message string) {
 	buffer.WriteString(fmt.Sprintf("[%s]", timestamp.Format("2006-01-02 15:04:05.000 MST")))
 
 	buffer.WriteByte(' ')
 	buffer.WriteString(p.colorizeSeverity(severity).String())
 
-	buffer.WriteByte(' ')
-	buffer.WriteString(Gray(12, fmt.Sprintf("(%s)", caller)).String())
+	if logger != nil && caller != nil {
+		buffer.WriteByte(' ')
+		buffer.WriteString(Gray(12, fmt.Sprintf("(%s, %s)", *logger, *caller)).String())
+	} else if logger != nil {
+		buffer.WriteByte(' ')
+		buffer.WriteString(Gray(12, fmt.Sprintf("(%s)", *logger)).String())
+	} else if caller != nil {
+		buffer.WriteByte(' ')
+		buffer.WriteString(Gray(12, fmt.Sprintf("(%s)", *caller)).String())
+	}
 
 	buffer.WriteByte(' ')
 	buffer.WriteString(Blue(message).String())
@@ -442,7 +476,7 @@ func (p *processor) colorizeSeverity(severity string) aurora.Value {
 		color = BlueFg
 	}
 
-	return Colorize(severity, color)
+	return Colorize(strings.ToUpper(severity), color)
 }
 
 func (p *processor) unformattedPrintLine(line string, message string, args ...interface{}) {

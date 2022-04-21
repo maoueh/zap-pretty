@@ -57,7 +57,21 @@ func TestStandardNewProduction(t *testing.T) {
 				`{"level":"info","ts":1545445711.144533,"caller":"c","msg":"m"}`,
 			},
 			expectedLines: []string{
-				"[2018-12-21 21:28:31.144 EST] \x1b[32minfo\x1b[0m \x1b[38;5;244m(c)\x1b[0m \x1b[34mm\x1b[0m",
+				"[2018-12-21 21:28:31.144 EST] \x1b[32mINFO\x1b[0m \x1b[38;5;244m(c)\x1b[0m \x1b[34mm\x1b[0m",
+			},
+		},
+	})
+}
+
+func TestStandardNewProduction2(t *testing.T) {
+	runLogTests(t, []logTest{
+		{
+			name: "single_log_line",
+			lines: []string{
+				`{"severity":"INFO","timestamp":"2022-04-21T14:50:18.382974069-04:00","logger":"l","message":"m"}`,
+			},
+			expectedLines: []string{
+				"[2022-04-21 14:50:18.382 EDT] \x1b[32mINFO\x1b[0m \x1b[38;5;244m(l)\x1b[0m \x1b[34mm\x1b[0m",
 			},
 		},
 	})
@@ -71,7 +85,7 @@ func TestStandardFieldTs_ISO8601_string(t *testing.T) {
 				`{"level":"info","ts":"2019-12-06T19:40:20.627Z","caller":"c","msg":"m"}`,
 			},
 			expectedLines: []string{
-				"[2019-12-06 14:40:20.627 EST] \x1b[32minfo\x1b[0m \x1b[38;5;244m(c)\x1b[0m \x1b[34mm\x1b[0m",
+				"[2019-12-06 14:40:20.627 EST] \x1b[32mINFO\x1b[0m \x1b[38;5;244m(c)\x1b[0m \x1b[34mm\x1b[0m",
 			},
 		},
 	})
