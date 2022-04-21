@@ -7,13 +7,17 @@ logging library. It reads a standard Zap JSON log line:
 {"severity":"INFO","time":"2018-12-10T17:06:24.10107832Z","caller":"main.go:45","message":"doing some stuff","count":2}
 ```
 
-And formats it to (with coloring):
+And formats it to:
 
-```
-[2018-12-10 17:06:24.101 UTC] INFO (main.go:45) doing some stuff {"count":2}
-```
+![](./docs/readme_colored_output.png)
 
-Compatible with `zap.NewProduction` and `zapdriver.NewProduction` formats out of the box.
+
+The tool receives JSON lines, determines if they seems like a log line of a supported format
+and pretty print it to standard output.
+
+Support Zap logging formats:
+- `zap.NewProduction`
+- `zapdriver.NewProduction`
 
 ## Install
 
@@ -34,10 +38,10 @@ directory included in your $PATH variable.
 ### Source
 
 ```sh
-$ go get -u github.com/maoueh/zap-pretty
+go install github.com/maoueh/zap-pretty@latest
 ```
 
-**Note** Source installation requires Go 1.11+.
+**Note** Source installation requires Go 1.16+.
 
 ## Usage
 

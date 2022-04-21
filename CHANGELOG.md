@@ -1,4 +1,6 @@
-## 0.3.0
+## Unreleased
+
+## 0.3.0 (April 21th, 2021)
 
 - [Fix] Fix formatting when `caller` is not present
 - [Improvement] The flag `-all` (or `--all`) can now be used to show fields that are filtered out by default
