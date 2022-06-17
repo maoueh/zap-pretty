@@ -111,6 +111,17 @@ func TestZapDriverNewProduction(t *testing.T) {
 				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[38;5;244m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\"}",
 			},
 		},
+
+		{
+			name: "line_with_timstamp_unix",
+			lines: []string{
+				`{"severity":"INFO","timestamp":"2022-06-16T23:11:09.929517378-04:00","message":"m","timestamp":1655435437,"logging.googleapis.com/labels":{}}`,
+			},
+			expectedLines: []string{
+				"[2022-06-16 23:10:37.000 EDT] \x1b[32mINFO\x1b[0m \x1b[34mm\x1b[0m",
+			},
+		},
+
 		{
 			name: "single_log_line_missing_fields",
 			lines: []string{

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- [Fix] Fix formatting when `timestamp` is unix timestamp and not string value
+
 ## 0.3.0 (April 21th, 2021)
 
 - [Fix] Fix formatting when `caller` is not present

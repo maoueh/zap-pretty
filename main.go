@@ -115,7 +115,7 @@ func (p *processor) process() {
 	}
 
 	if err := p.scanner.Err(); err != nil {
-		debugPrintln("Scanner terminated with error: %s", err)
+		debugPrintln("Scanner terminated with error: %w", err)
 	}
 }
 
@@ -203,7 +203,7 @@ func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interf
 func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]interface{}) (string, error) {
 	logTimestamp, err := tsFieldToTimestamp(lineData["ts"])
 	if err != nil {
-		return "", fmt.Errorf("unable to process field 'ts': %s", err)
+		return "", fmt.Errorf("unable to process field 'ts': %w", err)
 	}
 
 	var caller *string
@@ -273,9 +273,10 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	}
 
 	var buffer bytes.Buffer
-	parsedTime, err := time.Parse(time.RFC3339, timeValue.(string))
+
+	parsedTime, err := tsFieldToTimestamp(timeValue)
 	if err != nil {
-		return "", fmt.Errorf("unable to process field 'time': %s", err)
+		return "", fmt.Errorf("unable to process field %q: %w", timeField, err)
 	}
 
 	var caller *string
@@ -290,7 +291,7 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 		logger = &loggerStr
 	}
 
-	p.writeHeader(&buffer, &parsedTime, lineData["severity"].(string), caller, logger, lineData["message"].(string))
+	p.writeHeader(&buffer, parsedTime, lineData["severity"].(string), caller, logger, lineData["message"].(string))
 
 	// Delete standard stuff from data fields
 	delete(lineData, timeField)
