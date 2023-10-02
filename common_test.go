@@ -1,26 +1,33 @@
-package main
+package zapp
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 )
 
-func executeProcessorTest(lines []string, options ...processorOption) *bytes.Buffer {
+func executeProcessorTest(lines []string, options ...ProcessorOption) *bytes.Buffer {
 	reader := bytes.NewReader([]byte(strings.Join(lines, "\n")))
 	writer := &bytes.Buffer{}
 
-	processor := &processor{
-		scanner: bufio.NewScanner(reader),
-		output:  writer,
+	processor := &Processor{
+		scanner:                     bufio.NewScanner(reader),
+		output:                      writer,
+		multilineJSONFieldThreshold: 3,
+	}
+
+	if os.Getenv("DEBUG") != "" {
+		options = append(options, WithDebugLogger(log.New(os.Stdout, "[pretty-test] ", 0)))
 	}
 
 	for _, opt := range options {
 		opt.apply(processor)
 	}
 
-	processor.process()
+	processor.Process()
 	return writer
 }
 

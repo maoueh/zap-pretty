@@ -1,18 +1,16 @@
-package main
+package zapp
 
 import (
 	"bufio"
 	"bytes"
 	"io"
-	"io/ioutil"
-	"log"
 	"os"
 	"strings"
 	"testing"
 )
 
 func BenchmarkZapdriver(b *testing.B) {
-	processor, byteCount, reset, cleanup := preprareBenchmark(ioutil.Discard)
+	processor, byteCount, reset, cleanup := preprareBenchmark(io.Discard)
 	defer cleanup()
 
 	b.ResetTimer()
@@ -21,7 +19,7 @@ func BenchmarkZapdriver(b *testing.B) {
 	b.SetBytes(byteCount)
 
 	for n := 0; n < b.N; n++ {
-		processor.process()
+		processor.Process()
 		reset()
 	}
 }
@@ -31,20 +29,17 @@ func TestBenchmarkCode(t *testing.T) {
 	defer cleanup()
 
 	// This test can be run in verbose mode to ensure the actual benchmark code works as expected
-	processor.process()
+	processor.Process()
 	reset()
-	processor.process()
+	processor.Process()
 	reset()
 }
 
-func preprareBenchmark(output io.Writer) (proc *processor, byteCount int64, reset func(), cleanup func()) {
-	debugBackup := debug
-	debug = log.New(ioutil.Discard, "", 0)
-
+func preprareBenchmark(output io.Writer) (proc *Processor, byteCount int64, reset func(), cleanup func()) {
 	reader := bytes.NewReader([]byte(strings.Join(benchmarkZapdriverLines(), "\n")))
-	proc = &processor{scanner: bufio.NewScanner(reader), output: output}
+	proc = &Processor{scanner: bufio.NewScanner(reader), output: output}
 
-	return proc, reader.Size(), func() { reader.Seek(0, io.SeekStart) }, func() { debug = debugBackup }
+	return proc, reader.Size(), func() { reader.Seek(0, io.SeekStart) }, func() {}
 }
 
 func benchmarkZapdriverLines() []string {

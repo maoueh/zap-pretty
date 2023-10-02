@@ -1,20 +1,24 @@
-package main
+package zapp
 
 import (
+	"log"
+
 	"golang.org/x/sys/windows"
 )
 
-type signaler struct {
+func NewSignaler(debugEnabled bool, debugLogger *log.Logger) *signaler {
+	s := &signaler{
+		debugEnabled: debugEnabled,
+		debugLogger:  debugLogger,
+	}
+
+	return s
 }
 
-func NewSignaler() *signaler {
-	return &signaler{}
-}
-
-func (s *signaler) forwardAllSignalsToProcessGroup() {
+func (s *signaler) ForwardAllSignalsToProcessGroup() {
 	consoleCtrlEventChan := make(chan uint, 1)
 	if err := handleConsoleCtrlEvent(consoleCtrlEventChan); err != nil {
-		debug.Println("[Warning] unable to listen for console events")
+		s.debugPrintln("[Warning] unable to listen for console events")
 		return
 	}
 
@@ -42,7 +46,6 @@ func handleConsoleCtrlEvent(events chan<- uint) error {
 		events <- ctrlType
 		return 0
 	}
-
 
 	n, _, err := setConsoleCtrlHandler.Call(windows.NewCallback(callback), 1)
 	if n == 0 {

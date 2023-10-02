@@ -1,31 +1,32 @@
-//+build darwin linux
+//go:build darwin || linux
+// +build darwin linux
 
-package main
+package zapp
 
 import (
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 )
 
-type signaler struct {
-	processGroupID int
-}
-
-func NewSignaler() *signaler {
-	signaler := &signaler{}
+func NewSignaler(debugEnabled bool, debugLogger *log.Logger) *signaler {
+	s := &signaler{
+		debugEnabled: debugEnabled,
+		debugLogger:  debugLogger,
+	}
 
 	pgid, err := syscall.Getpgid(os.Getpid())
 	if err != nil {
-		signaler.processGroupID = pgid
+		s.processGroupID = pgid
 	} else {
-		debug.Println("[Warning] unable to determine process group, signaling will be broken")
+		s.debugPrintln("[Warning] unable to determine process group, signaling will be broken")
 	}
 
-	return signaler
+	return s
 }
 
-func (s *signaler) forwardAllSignalsToProcessGroup() {
+func (s *signaler) ForwardAllSignalsToProcessGroup() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan)
 

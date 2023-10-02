@@ -1,17 +1,14 @@
-package main
+package zapp
 
 import (
 	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
-	"os"
 	"strings"
 	"time"
 
@@ -19,27 +16,13 @@ import (
 	. "github.com/logrusorgru/aurora"
 )
 
-// Provided via ldflags by goreleaser automatically
 var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
-)
-
-var (
-	debug           = log.New(ioutil.Discard, "", 0)
-	debugEnabled    = false
 	severityToColor map[string]Color
 )
 
 var errNonZapLine = errors.New("non-zap line")
 
 func init() {
-	if os.Getenv("ZAP_PRETTY_DEBUG") != "" {
-		debug = log.New(os.Stderr, "[pretty-debug] ", 0)
-		debugEnabled = true
-	}
-
 	severityToColor = make(map[string]Color)
 	severityToColor["debug"] = BlueFg
 	severityToColor["info"] = GreenFg
@@ -50,65 +33,65 @@ func init() {
 	severityToColor["fatal"] = RedFg
 }
 
-type processorOption interface {
-	apply(p *processor)
+type ProcessorOption interface {
+	apply(p *Processor)
 }
 
-type processorOptionFunc func(p *processor)
+type ProcessorOptionFunc func(p *Processor)
 
-func (f processorOptionFunc) apply(p *processor) {
+func (f ProcessorOptionFunc) apply(p *Processor) {
 	f(p)
 }
 
-func withAllFields() processorOption {
-	return processorOptionFunc(func(p *processor) {
+func WithAllFields() ProcessorOption {
+	return ProcessorOptionFunc(func(p *Processor) {
 		p.showAllFields = true
 	})
 }
 
-type processor struct {
-	scanner       *bufio.Scanner
-	output        io.Writer
-	showAllFields bool
+func WithMultilineJSONFieldThreshold(threshold int) ProcessorOption {
+	return ProcessorOptionFunc(func(p *Processor) {
+		p.multilineJSONFieldThreshold = threshold
+	})
 }
 
-var (
-	showAllFlag                      = flag.Bool("all", false, "Show ")
-	versionFlag                      = flag.Bool("version", false, "Prints version information and exit")
-	multilineJSONStartingFromLenFlag = flag.Int("n", 3, "Format JSON as multiline if got more than n elements in data")
-)
+func WithDebugLogger(logger *log.Logger) ProcessorOption {
+	return ProcessorOptionFunc(func(p *Processor) {
+		p.debugEnabled = true
+		p.debugLogger = logger
+	})
+}
 
-var showAll = false
+type Processor struct {
+	scanner *bufio.Scanner
+	output  io.Writer
 
-func main() {
-	flag.Parse()
+	// Options
+	debugEnabled                bool
+	debugLogger                 *log.Logger
+	multilineJSONFieldThreshold int
+	showAllFields               bool
+}
 
-	if *versionFlag {
-		printVersion()
-		os.Exit(0)
+func NewProcessor(scanner *bufio.Scanner, output io.Writer, opts ...ProcessorOption) *Processor {
+	processor := &Processor{
+		scanner: scanner,
+		output:  output,
+
+		debugEnabled:                false,
+		debugLogger:                 nil,
+		multilineJSONFieldThreshold: 3,
+		showAllFields:               false,
 	}
 
-	go NewSignaler().forwardAllSignalsToProcessGroup()
-
-	// FIXME: How could we make it more resilient to we simply drop the line instead? Would that mean our own "scanner"?
-	// New scanner with a maximum of 250MiB per line, pass that, we panic.
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(nil, 250*1024*1024)
-
-	processor := &processor{
-		scanner:       scanner,
-		output:        os.Stdout,
-		showAllFields: *showAllFlag,
+	for _, opt := range opts {
+		opt.apply(processor)
 	}
 
-	processor.process()
+	return processor
 }
 
-func printVersion() {
-	fmt.Printf("zap-pretty %s (commit: %s, date: %v)\n", version, commit, date)
-}
-
-func (p *processor) process() {
+func (p *Processor) Process() {
 	first := true
 	for p.scanner.Scan() {
 		if !first {
@@ -120,18 +103,18 @@ func (p *processor) process() {
 	}
 
 	if err := p.scanner.Err(); err != nil {
-		debugPrintln("Scanner terminated with error: %w", err)
+		p.debugPrintln("Scanner terminated with error: %w", err)
 	}
 }
 
-func (p *processor) processLine(line string) {
+func (p *Processor) processLine(line string) {
 	defer func() {
 		if err := recover(); err != nil {
 			p.unformattedPrintLine(line, "Panic occurred while processing line '%s', ending processing (%s)", line, err)
 		}
 	}()
 
-	debugPrintln("Processing line: %s", line)
+	p.debugPrintln("Processing line: %s", line)
 	reader := bytes.NewReader([]byte(line))
 	decoder := json.NewDecoder(reader)
 
@@ -184,16 +167,16 @@ func (p *processor) processLine(line string) {
 
 		switch err {
 		case errNonZapLine:
-			debugPrintln("Not a known zap line format")
+			p.debugPrintln("Not a known zap line format")
 		default:
-			debugPrintln("Not printing line due to error: %s", err)
+			p.debugPrintln("Not printing line due to error: %s", err)
 		}
 	} else {
 		fmt.Fprint(p.output, prettyLine)
 	}
 }
 
-func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
+func (p *Processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
 	if lineData["level"] != nil && lineData["ts"] != nil && lineData["msg"] != nil {
 		return p.maybePrettyPrintZapLine(line, lineData)
 	}
@@ -205,7 +188,7 @@ func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interf
 	return "", errNonZapLine
 }
 
-func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]interface{}) (string, error) {
+func (p *Processor) maybePrettyPrintZapLine(line string, lineData map[string]interface{}) (string, error) {
 	logTimestamp, err := tsFieldToTimestamp(lineData["ts"])
 	if err != nil {
 		return "", fmt.Errorf("unable to process field 'ts': %w", err)
@@ -269,7 +252,7 @@ func tsFieldToTimestamp(input interface{}) (*time.Time, error) {
 	return &zeroTime, fmt.Errorf("don't know how to turn %T (value %s) into a time.Time object", input, input)
 }
 
-func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[string]interface{}) (string, error) {
+func (p *Processor) maybePrettyPrintZapdriverLine(line string, lineData map[string]interface{}) (string, error) {
 	timeField := "time"
 	timeValue := lineData[timeField]
 	if lineData[timeField] == nil {
@@ -333,7 +316,7 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	return buffer.String(), nil
 }
 
-func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller *string, logger *string, message string) {
+func (p *Processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller *string, logger *string, message string) {
 	buffer.WriteString(fmt.Sprintf("[%s]", timestamp.Format("2006-01-02 15:04:05.000 MST")))
 
 	buffer.WriteByte(' ')
@@ -356,7 +339,7 @@ func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, seve
 
 var temporaryStackSpacer = "_-@\\!/@-_"
 
-func (p *processor) writeErrorDetails(buffer *bytes.Buffer, errorVerbose string, stacktrace string) {
+func (p *Processor) writeErrorDetails(buffer *bytes.Buffer, errorVerbose string, stacktrace string) {
 	if stacktrace != "" {
 		buffer.WriteByte('\n')
 		buffer.WriteString("Stacktrace\n")
@@ -449,7 +432,7 @@ func writeStackLine(buffer *bytes.Buffer, line string, isFirstStack, isLastStack
 	}
 }
 
-func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{}) {
+func (p *Processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{}) {
 	if len(data) <= 0 {
 		return
 	}
@@ -461,7 +444,7 @@ func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{})
 	var jsonBytes []byte
 	var err error
 
-	if len(data) <= *multilineJSONStartingFromLenFlag {
+	if len(data) <= p.multilineJSONFieldThreshold {
 		jsonBytes, err = json.Marshal(data)
 	} else {
 		jsonBytes, err = json.MarshalIndent(data, "", "  ")
@@ -469,14 +452,14 @@ func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{})
 
 	if err != nil {
 		// FIXME: We could print each line as raw text maybe when it's not working?
-		debugPrintln("Unable to marshal data as JSON: %s", err)
+		p.debugPrintln("Unable to marshal data as JSON: %s", err)
 	} else {
 		buffer.WriteByte(' ')
 		buffer.Write(jsonBytes)
 	}
 }
 
-func (p *processor) colorizeSeverity(severity string) aurora.Value {
+func (p *Processor) colorizeSeverity(severity string) aurora.Value {
 	color := severityToColor[strings.ToLower(severity)]
 	if color == 0 {
 		color = BlueFg
@@ -485,13 +468,13 @@ func (p *processor) colorizeSeverity(severity string) aurora.Value {
 	return Colorize(strings.ToUpper(severity), color)
 }
 
-func (p *processor) unformattedPrintLine(line string, message string, args ...interface{}) {
-	debugPrintln(message, args...)
+func (p *Processor) unformattedPrintLine(line string, message string, args ...interface{}) {
+	p.debugPrintln(message, args...)
 	fmt.Fprint(p.output, line)
 }
 
-func debugPrintln(msg string, args ...interface{}) {
-	if debugEnabled {
-		debug.Printf(msg+"\n", args...)
+func (p *Processor) debugPrintln(msg string, args ...interface{}) {
+	if p.debugEnabled {
+		p.debugLogger.Printf(msg+"\n", args...)
 	}
 }

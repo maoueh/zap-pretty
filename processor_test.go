@@ -1,8 +1,6 @@
-package main
+package zapp
 
 import (
-	"log"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,13 +12,10 @@ type logTest struct {
 	name          string
 	lines         []string
 	expectedLines []string
-	options       []processorOption
+	options       []ProcessorOption
 }
 
 func init() {
-	debug = log.New(os.Stdout, "[pretty-test] ", 0)
-	debugEnabled = os.Getenv("DEBUG") != ""
-
 	// All tests uses America/Toronto timezone so tests works on all servers
 	loc, _ := time.LoadLocation("America/Toronto")
 	time.Local = loc
@@ -237,7 +232,7 @@ func TestZapDriverNewProduction(t *testing.T) {
 			expectedLines: []string{
 				"[2018-12-21 23:06:49.435 EST] \x1b[32mINFO\x1b[0m \x1b[38;5;244m(c:0)\x1b[0m \x1b[34mm\x1b[0m {\"folder\":\"f\",\"labels\":{},\"logging.googleapis.com/sourceLocation\":{\"file\":\"f\",\"function\":\"fn\",\"line\":\"1\"}}",
 			},
-			options: []processorOption{withAllFields()},
+			options: []ProcessorOption{WithAllFields()},
 		},
 
 		// Skip for now, requires transform json.Marshal into a streaming code that scans the input instead.
