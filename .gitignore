@@ -2,6 +2,7 @@
 .envrc
 
 ## Go
+/build
 /dist
 /vendor
 /zap-pretty
