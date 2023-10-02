@@ -1,0 +1,6 @@
+global:
+  binary: zap-pretty
+  language: golang
+  variant: application
+release:
+  brew-tap-repo: maoueh/zap-pretty

@@ -1,6 +1,6 @@
-## Unreleased
+## 0.4.0 (October 2nd, 2023)
 
-- [Fix] Fix formatting when `timestamp` is unix timestamp and not string value
+- [Fix] Fix formatting when `timestamp` is unix timestamp and not string value.
 
 ## 0.3.0 (April 21th, 2021)
 
