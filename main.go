@@ -26,9 +26,11 @@ var (
 	date    = "unknown"
 )
 
-var debug = log.New(ioutil.Discard, "", 0)
-var debugEnabled = false
-var severityToColor map[string]Color
+var (
+	debug           = log.New(ioutil.Discard, "", 0)
+	debugEnabled    = false
+	severityToColor map[string]Color
+)
 
 var errNonZapLine = errors.New("non-zap line")
 
@@ -70,8 +72,11 @@ type processor struct {
 	showAllFields bool
 }
 
-var showAllFlag = flag.Bool("all", false, "Show ")
-var versionFlag = flag.Bool("version", false, "Prints version information and exit")
+var (
+	showAllFlag                      = flag.Bool("all", false, "Show ")
+	versionFlag                      = flag.Bool("version", false, "Prints version information and exit")
+	multilineJSONStartingFromLenFlag = flag.Int("n", 3, "Format JSON as multiline if got more than n elements in data")
+)
 
 var showAll = false
 
@@ -456,7 +461,7 @@ func (p *processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{})
 	var jsonBytes []byte
 	var err error
 
-	if len(data) <= 3 {
+	if len(data) <= *multilineJSONStartingFromLenFlag {
 		jsonBytes, err = json.Marshal(data)
 	} else {
 		jsonBytes, err = json.MarshalIndent(data, "", "  ")
