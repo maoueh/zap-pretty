@@ -74,6 +74,7 @@ zap_instrumented | zap-pretty --all
 
 - `--all` - Show all fields of the line, even those filtered out by default for the active logger format (default `false`).
 - `--version` - Show version information.
+- `-n` - Format JSON as multiline if got more than n elements in data (default 3).
 
 ### Troubleshoot
 
