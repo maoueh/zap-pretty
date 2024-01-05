@@ -12,6 +12,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -194,7 +195,7 @@ func (p *processor) processLine(line string) {
 }
 
 func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
-	if lineData["level"] != nil && lineData["ts"] != nil && lineData["msg"] != nil {
+	if lineData["level"] != nil && (lineData["ts"] != nil || lineData["timestamp"] != nil) && lineData["msg"] != nil {
 		return p.maybePrettyPrintZapLine(line, lineData)
 	}
 
@@ -206,7 +207,8 @@ func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interf
 }
 
 func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]interface{}) (string, error) {
-	logTimestamp, err := tsFieldToTimestamp(lineData["ts"])
+	timestamp := getElementFromMap(lineData, "ts", "timestamp")
+	logTimestamp, err := tsFieldToTimestamp(timestamp)
 	if err != nil {
 		return "", fmt.Errorf("unable to process field 'ts': %w", err)
 	}
@@ -223,15 +225,39 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 		logger = &loggerStr
 	}
 
+	var processId *string
+	if v := lineData["process_id"]; v != nil {
+		processIdF64 := v.(float64)
+		processIdStr := strconv.FormatFloat(processIdF64, 'f', -1, 64)
+		processId = &processIdStr
+	}
+
+	var threadId *string
+	if v := lineData["threadId"]; v != nil {
+		threadIdF64 := v.(float64)
+		threadIdStr := strconv.FormatFloat(threadIdF64, 'f', -1, 64)
+		threadId = &threadIdStr
+	}
+
+	var thread *string
+	if v := lineData["thread"]; v != nil {
+		threadStr := v.(string)
+		thread = &threadStr
+	}
+
 	var buffer bytes.Buffer
-	p.writeHeader(&buffer, logTimestamp, lineData["level"].(string), caller, logger, lineData["msg"].(string))
+	p.writeHeader(&buffer, logTimestamp, lineData["level"].(string), caller, logger, processId, thread, threadId, lineData["msg"].(string))
 
 	// Delete standard stuff from data fields
 	delete(lineData, "level")
 	delete(lineData, "ts")
+	delete(lineData, "timestamp")
 	delete(lineData, "caller")
 	delete(lineData, "logger")
 	delete(lineData, "msg")
+	delete(lineData, "thread")
+	delete(lineData, "threadId")
+	delete(lineData, "process_id")
 
 	stacktrace := ""
 	if t, ok := lineData["stacktrace"].(string); ok && t != "" {
@@ -246,6 +272,16 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	}
 
 	return buffer.String(), nil
+}
+
+func getElementFromMap(lineData map[string]interface{}, keys ...string) interface{} {
+	for _, key := range keys {
+		elem := lineData[key]
+		if elem != nil {
+			return elem
+		}
+	}
+	return nil
 }
 
 var zeroTime = time.Time{}
@@ -296,7 +332,7 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 		logger = &loggerStr
 	}
 
-	p.writeHeader(&buffer, parsedTime, lineData["severity"].(string), caller, logger, lineData["message"].(string))
+	p.writeHeader(&buffer, parsedTime, lineData["severity"].(string), caller, logger, nil, nil, nil, lineData["message"].(string))
 
 	// Delete standard stuff from data fields
 	delete(lineData, timeField)
@@ -333,7 +369,7 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	return buffer.String(), nil
 }
 
-func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller *string, logger *string, message string) {
+func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller *string, logger *string, processId *string, thread *string, threadId *string, message string) {
 	buffer.WriteString(fmt.Sprintf("[%s]", timestamp.Format("2006-01-02 15:04:05.000 MST")))
 
 	buffer.WriteByte(' ')
@@ -348,6 +384,21 @@ func (p *processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, seve
 	} else if caller != nil {
 		buffer.WriteByte(' ')
 		buffer.WriteString(Gray(12, fmt.Sprintf("(%s)", *caller)).String())
+	}
+
+	if processId != nil {
+		buffer.WriteByte(' ')
+		buffer.WriteString(Gray(12, fmt.Sprintf("[%s]", *processId)).String())
+	}
+
+	if thread != nil {
+		buffer.WriteByte(' ')
+		buffer.WriteString(Gray(12, fmt.Sprintf("[%s]", *thread)).String())
+	}
+
+	if threadId != nil {
+		buffer.WriteByte(' ')
+		buffer.WriteString(Gray(12, fmt.Sprintf("[%s]", *threadId)).String())
 	}
 
 	buffer.WriteByte(' ')
