@@ -233,7 +233,7 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	}
 
 	var threadId *string
-	if v := lineData["threadId"]; v != nil {
+	if v := lineData["thread_id"]; v != nil {
 		threadIdF64 := v.(float64)
 		threadIdStr := strconv.FormatFloat(threadIdF64, 'f', -1, 64)
 		threadId = &threadIdStr
@@ -256,7 +256,7 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	delete(lineData, "logger")
 	delete(lineData, "msg")
 	delete(lineData, "thread")
-	delete(lineData, "threadId")
+	delete(lineData, "thread_id")
 	delete(lineData, "process_id")
 
 	stacktrace := ""
