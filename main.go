@@ -195,7 +195,7 @@ func (p *processor) processLine(line string) {
 }
 
 func (p *processor) maybePrettyPrintLine(line string, lineData map[string]interface{}) (string, error) {
-	if lineData["level"] != nil && (lineData["ts"] != nil || lineData["timestamp"] != nil) && lineData["msg"] != nil {
+	if lineData["level"] != nil && (lineData["ts"] != nil || lineData["timestamp"] != nil) && lineData["message"] != nil {
 		return p.maybePrettyPrintZapLine(line, lineData)
 	}
 
@@ -249,7 +249,7 @@ func (p *processor) maybePrettyPrintZapLine(line string, lineData map[string]int
 	delete(lineData, "timestamp")
 	delete(lineData, "caller")
 	delete(lineData, "logger")
-	delete(lineData, "msg")
+	delete(lineData, "message")
 
 	if os.Getenv("ZAP_PRETTY_PRINT_THREADS") != "" {
 		delete(lineData, "thread")
@@ -326,7 +326,22 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 		logger = &loggerStr
 	}
 
-	p.writeHeader(&buffer, parsedTime, lineData["severity"].(string), caller, logger, nil, nil, lineData["message"].(string))
+	var threadId *string
+	var thread *string
+	if os.Getenv("ZAP_PRETTY_PRINT_THREADS") != "" {
+		if v := lineData["thread_id"]; v != nil {
+			threadIdF64 := v.(float64)
+			threadIdStr := strconv.FormatFloat(threadIdF64, 'f', -1, 64)
+			threadId = &threadIdStr
+		}
+
+		if v := lineData["thread"]; v != nil {
+			threadStr := v.(string)
+			thread = &threadStr
+		}
+	}
+
+	p.writeHeader(&buffer, parsedTime, lineData["severity"].(string), caller, logger, thread, threadId, lineData["message"].(string))
 
 	// Delete standard stuff from data fields
 	delete(lineData, timeField)
@@ -334,6 +349,11 @@ func (p *processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	delete(lineData, "caller")
 	delete(lineData, "logger")
 	delete(lineData, "message")
+
+	if os.Getenv("ZAP_PRETTY_PRINT_THREADS") != "" {
+		delete(lineData, "thread")
+		delete(lineData, "thread_id")
+	}
 
 	if !p.showAllFields {
 		delete(lineData, "labels")
