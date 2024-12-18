@@ -1,4 +1,5 @@
 global:
+  owner: maoueh
   binary: zap-pretty
   language: golang
   variant: application
