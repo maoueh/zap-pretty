@@ -38,7 +38,7 @@ directory included in your $PATH variable.
 ### Source
 
 ```sh
-go install github.com/maoueh/zap-pretty@latest
+go install github.com/maoueh/zap-pretty/cmd/zap-pretty@latest
 ```
 
 **Note** Source installation requires Go 1.16+.
