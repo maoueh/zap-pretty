@@ -43,6 +43,18 @@ func (f ProcessorOptionFunc) apply(p *Processor) {
 	f(p)
 }
 
+func WithDelta(show bool) ProcessorOption {
+	return ProcessorOptionFunc(func(p *Processor) {
+		p.delta = show
+	})
+}
+
+func WithMultilineJSONForced(forced bool) ProcessorOption {
+	return ProcessorOptionFunc(func(p *Processor) {
+		p.multilineJSONForced = forced
+	})
+}
+
 func WithAllFields() ProcessorOption {
 	return ProcessorOptionFunc(func(p *Processor) {
 		p.showAllFields = true
@@ -66,11 +78,16 @@ type Processor struct {
 	scanner *bufio.Scanner
 	output  io.Writer
 
+	// State
+	lastProcessedTimestamp *time.Time
+
 	// Options
 	debugEnabled                bool
 	debugLogger                 *log.Logger
 	multilineJSONFieldThreshold int
+	multilineJSONForced         bool
 	showAllFields               bool
+	delta                       bool
 }
 
 func NewProcessor(scanner *bufio.Scanner, output io.Writer, opts ...ProcessorOption) *Processor {
@@ -316,8 +333,30 @@ func (p *Processor) maybePrettyPrintZapdriverLine(line string, lineData map[stri
 	return buffer.String(), nil
 }
 
+const timeFormat = "2006-01-02 15:04:05.000 MST"
+
 func (p *Processor) writeHeader(buffer *bytes.Buffer, timestamp *time.Time, severity string, caller *string, logger *string, message string) {
-	buffer.WriteString(fmt.Sprintf("[%s]", timestamp.Format("2006-01-02 15:04:05.000 MST")))
+	defer func() {
+		if p.lastProcessedTimestamp == nil {
+			p.lastProcessedTimestamp = timestamp
+			return
+		}
+
+		if timestamp != nil {
+			p.lastProcessedTimestamp = timestamp
+		}
+	}()
+
+	if p.delta {
+		delta := "-"
+		if p.lastProcessedTimestamp != nil && timestamp != nil {
+			delta = durationToString(timestamp.Sub(*p.lastProcessedTimestamp))
+		}
+
+		buffer.WriteString(fmt.Sprintf("[%s, %s]", timestamp.Format(timeFormat), delta))
+	} else {
+		buffer.WriteString(fmt.Sprintf("[%s]", timestamp.Format(timeFormat)))
+	}
 
 	buffer.WriteByte(' ')
 	buffer.WriteString(p.colorizeSeverity(severity).String())
@@ -444,10 +483,10 @@ func (p *Processor) writeJSON(buffer *bytes.Buffer, data map[string]interface{})
 	var jsonBytes []byte
 	var err error
 
-	if len(data) <= p.multilineJSONFieldThreshold {
-		jsonBytes, err = json.Marshal(data)
-	} else {
+	if p.multilineJSONForced || len(data) > p.multilineJSONFieldThreshold {
 		jsonBytes, err = json.MarshalIndent(data, "", "  ")
+	} else {
+		jsonBytes, err = json.Marshal(data)
 	}
 
 	if err != nil {
