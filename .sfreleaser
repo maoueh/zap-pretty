@@ -4,4 +4,4 @@ global:
   language: golang
   variant: application
 release:
-  brew-tap-repo: maoueh/zap-pretty
+  brew-tap-repo: maoueh/homebrew-tap
