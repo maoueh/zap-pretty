@@ -1,6 +1,6 @@
 module github.com/maoueh/zap-pretty
 
-go 1.18
+go 1.21
 
 require (
 	github.com/logrusorgru/aurora v0.0.0-20200102142835-e9ef32dff381

@@ -14,20 +14,21 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        go: [ '1.19', '1.20', '1.21' ]
+        go: [ '1.21', '1.22', '1.23' ]
     name: Go ${{ matrix.go }} sample
     steps:
       - name: Setup go
-        uses: actions/setup-go@v1
+        uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
 
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Cache Go modules
-        uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
-          path: ~/go/pkg/mod
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
