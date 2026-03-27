@@ -52,6 +52,9 @@ func main() {
 			  - '--all' (ZAP_PRETTY_ALL)
 			    Show all fields that would normally be ignored by default like 'serviceContext', 'labels', etc.
 
+			  - '--filter' (ZAP_PRETTY_FILTER)
+			    Only print JSON lines where the exact top-level key/value pair matches, for example 'block_num=308267722' or 'logger=acme'.
+
 			  - '--show-delta, -d' (ZAP_PRETTY_SHOW_DELTA)
 			    On the timestamp field, add delta from the last seen log line, if any.
 
@@ -64,6 +67,7 @@ func main() {
 
 		Flags(func(flags *pflag.FlagSet) {
 			flags.Bool("all", false, "Show all fields that would normally be ignored by default like 'serviceContext', 'labels', etc.")
+			flags.String("filter", "", "Only print JSON lines where the exact top-level key=value pair matches")
 			flags.BoolP("show-delta", "d", false, "On the timestamp field, add delta from the last seen log line, if any")
 			flags.IntP("multiline-json-threshold", "n", 3, "Format JSON as multiline if got more than n elements in data")
 			flags.BoolP("multiline-json-force", "m", false, "Force JSON to be printed as multiline even if it's below the threshold, overrides and ignores 'multiline-json-threshold'")
@@ -84,6 +88,11 @@ func main() {
 			go run ./cmd/acme | zap-pretty -d
 			[2024-12-18 09:27:49.160 EST, +0] INFO (acme) checking if block available
 			[2024-12-18 09:28:39.160 EST, +40s] INFO (acme) optimistically fetching block {"block_num":308267722}
+			...
+
+			# Only show logs for a specific field/value pair
+			go run ./cmd/acme | zap-pretty --filter block_num=308267722
+			[2024-12-18 09:28:39.160 EST] INFO (acme) optimistically fetching block {"block_num":308267722}
 			...
 		`),
 
@@ -119,6 +128,15 @@ func run(cmd *cobra.Command, args []string) error {
 
 	if sflags.MustGetBool(cmd, "all") {
 		opts = append(opts, zapp.WithAllFields())
+	}
+
+	if filterExpr := sflags.MustGetString(cmd, "filter"); filterExpr != "" {
+		filter, err := zapp.ParseKeyValueFilter(filterExpr)
+		if err != nil {
+			return err
+		}
+
+		opts = append(opts, zapp.WithKeyValueFilter(filter))
 	}
 
 	zapp.NewProcessor(scanner, os.Stdout, opts...).Process()

@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"reflect"
 	"strings"
 	"time"
 
@@ -74,6 +75,61 @@ func WithDebugLogger(logger *log.Logger) ProcessorOption {
 	})
 }
 
+type KeyValueFilter struct {
+	Key   string
+	Value any
+}
+
+func ParseKeyValueFilter(input string) (*KeyValueFilter, error) {
+	key, value, found := strings.Cut(input, "=")
+	if !found {
+		return nil, fmt.Errorf("invalid filter %q: expected key=value", input)
+	}
+
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, fmt.Errorf("invalid filter %q: key cannot be empty", input)
+	}
+
+	value = strings.TrimSpace(value)
+
+	var parsedValue any
+	if err := json.Unmarshal([]byte(value), &parsedValue); err != nil {
+		parsedValue = value
+	}
+
+	return &KeyValueFilter{Key: key, Value: parsedValue}, nil
+}
+
+func (f *KeyValueFilter) Matches(lineAllData map[string][]any) bool {
+	if f == nil {
+		return true
+	}
+
+	values, found := lineAllData[f.Key]
+	if !found {
+		return false
+	}
+
+	if reflect.DeepEqual(getValueOrArray(lineAllData, f.Key), f.Value) {
+		return true
+	}
+
+	for _, value := range values {
+		if reflect.DeepEqual(value, f.Value) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func WithKeyValueFilter(filter *KeyValueFilter) ProcessorOption {
+	return ProcessorOptionFunc(func(p *Processor) {
+		p.filter = filter
+	})
+}
+
 type Processor struct {
 	scanner *bufio.Scanner
 	output  io.Writer
@@ -88,6 +144,7 @@ type Processor struct {
 	multilineJSONForced         bool
 	showAllFields               bool
 	delta                       bool
+	filter                      *KeyValueFilter
 }
 
 func NewProcessor(scanner *bufio.Scanner, output io.Writer, opts ...ProcessorOption) *Processor {
@@ -109,14 +166,19 @@ func NewProcessor(scanner *bufio.Scanner, output io.Writer, opts ...ProcessorOpt
 }
 
 func (p *Processor) Process() {
-	first := true
+	hasPrinted := false
 	for p.scanner.Scan() {
-		if !first {
+		output, printed := p.processLine(p.scanner.Text())
+		if !printed {
+			continue
+		}
+
+		if hasPrinted {
 			fmt.Fprintln(p.output)
 		}
 
-		p.processLine(p.scanner.Text())
-		first = false
+		fmt.Fprint(p.output, output)
+		hasPrinted = true
 	}
 
 	if err := p.scanner.Err(); err != nil {
@@ -124,10 +186,11 @@ func (p *Processor) Process() {
 	}
 }
 
-func (p *Processor) processLine(line string) {
+func (p *Processor) processLine(line string) (output string, printed bool) {
 	defer func() {
 		if err := recover(); err != nil {
-			p.unformattedPrintLine(line, "Panic occurred while processing line '%s', ending processing (%s)", line, err)
+			output = p.unformattedLine(line, "Panic occurred while processing line '%s', ending processing (%s)", line, err)
+			printed = true
 		}
 	}()
 
@@ -137,30 +200,26 @@ func (p *Processor) processLine(line string) {
 
 	token, err := decoder.Token()
 	if err != nil {
-		p.unformattedPrintLine(line, "Does not look like a JSON line, ending processing (%s)", err)
-		return
+		return p.unformattedLine(line, "Does not look like a JSON line, ending processing (%s)", err), true
 	}
 
 	delim, ok := token.(json.Delim)
 	if !ok || delim != '{' {
-		p.unformattedPrintLine(line, "Expecting a JSON object delimited, ending processing")
-		return
+		return p.unformattedLine(line, "Expecting a JSON object delimited, ending processing"), true
 	}
 
 	lineAllData := map[string][]any{}
 	for decoder.More() {
 		token, err := decoder.Token()
 		if err != nil {
-			p.unformattedPrintLine(line, "Invalid JSON key in line, ending processing (%s)", err)
-			return
+			return p.unformattedLine(line, "Invalid JSON key in line, ending processing (%s)", err), true
 		}
 
 		key := token.(string)
 
 		var value any
 		if err := decoder.Decode(&value); err != nil {
-			p.unformattedPrintLine(line, "Invalid JSON value in line, ending processing (%s)", err)
-			return
+			return p.unformattedLine(line, "Invalid JSON value in line, ending processing (%s)", err), true
 		}
 
 		lineAllData[key] = append(lineAllData[key], value)
@@ -168,23 +227,27 @@ func (p *Processor) processLine(line string) {
 
 	// Read the ending delimiter of the JSON object
 	if _, err := decoder.Token(); err != nil {
-		p.unformattedPrintLine(line, "Invalid JSON, missing object end delimiter in line, ending processing (%s)", err)
-		return
+		return p.unformattedLine(line, "Invalid JSON, missing object end delimiter in line, ending processing (%s)", err), true
+	}
+
+	if p.filter != nil && !p.filter.Matches(lineAllData) {
+		p.debugPrintln("Skipping line because filter %q did not match", p.filter.Key)
+		return "", false
 	}
 
 	prettyLine, err := p.prettifyIfMatchKnownFormats(line, lineAllData)
 
 	if err != nil {
-		fmt.Fprint(p.output, line)
-
 		switch err {
 		case errNonZapLine:
 			p.debugPrintln("Not a known zap line format")
 		default:
 			p.debugPrintln("Not printing line due to error: %s", err)
 		}
+
+		return line, true
 	} else {
-		fmt.Fprint(p.output, prettyLine)
+		return prettyLine, true
 	}
 }
 
@@ -572,9 +635,9 @@ func (p *Processor) colorizeSeverity(severity string) aurora.Value {
 	return Colorize(strings.ToUpper(severity), color)
 }
 
-func (p *Processor) unformattedPrintLine(line string, message string, args ...interface{}) {
+func (p *Processor) unformattedLine(line string, message string, args ...interface{}) string {
 	p.debugPrintln(message, args...)
-	fmt.Fprint(p.output, line)
+	return line
 }
 
 func (p *Processor) debugPrintln(msg string, args ...interface{}) {

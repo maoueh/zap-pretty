@@ -51,6 +51,12 @@ Simply pipe the output of the CLI tool generating Zap JSON log lines to the `zap
 zap_instrumented | zap-pretty
 ```
 
+To keep only lines with a specific top-level field/value pair, add `--filter key=value`:
+
+```sh
+zap_instrumented | zap-pretty --filter block_num=308267722
+```
+
 The tool supports Zap standard production format as well as the Zapdriver standard format (for
 consumption by Google Stackdriver).
 
@@ -73,6 +79,7 @@ zap_instrumented | zap-pretty --all
 ### CLI Arguments
 
 - `--all` - Show all fields of the line, even those filtered out by default for the active logger format (default `false`).
+- `--filter` - Only print JSON lines where the exact top-level `key=value` pair matches. Plain values are treated as strings, while valid JSON literals like numbers, booleans, `null`, arrays, and objects are matched as JSON values.
 - `--version` - Show version information.
 - `-n` - Format JSON as multiline if got more than n elements in data (default 3).
 
